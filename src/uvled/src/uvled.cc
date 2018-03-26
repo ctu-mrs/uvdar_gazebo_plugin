@@ -18,13 +18,16 @@ private:
 
 public:
   void Load(physics::ModelPtr _parent, sdf::ElementPtr /*_sdf*/) {
+
+    id = 1;
     
-    std::cout << "Initializing" << std::endl;
+    std::cout << "Initializing LED n. " << id << std::endl;
 
     // Store the pointer to the model
     this->model = _parent;
+    /* std::cout << this->model->GetName()  << std::endl; */
+    
 
-    id = 1;
     f  = 10;
     T  = 1.0 / f;
     Th = T / 2.0;
@@ -50,9 +53,18 @@ public:
 
     /* transport::fini(); */
     // Listen to the update event. This event is broadcast every
-    this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
+    /* shutdown(); */
+
+    /* while(true){ */
+    /*   common::Time::MSleep(1); */
+    /* } */
+
   }
 
+public:
+  void Init(){
+    this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
+  }
   // Called by the world update start event
 public:
   void OnUpdate() {
@@ -63,7 +75,7 @@ public:
 
     /* std::cout << "f: "<< f << std::endl; */
     /* std::cout << "T: "<< T << std::endl; */
-    std::cout << state << std::endl;
+    /* std::cout << state << std::endl; */
     msgs::Pose poseMsg;
     msgs::Int stateMsg;
     msgs::Set(&poseMsg, pose.Ign());

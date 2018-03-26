@@ -11,19 +11,19 @@
       </collision>
       <visual name='base'>
         <geometry>
-          <sphere><radius>0.5</radius></sphere>
+          <sphere><radius>0.05</radius></sphere>
         </geometry>
-          <material>
-            <script>
-              <name>Gazebo/BlueTransparent</name>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-            </script>
-          </material>
+        <material>
+          <script>
+            <name>Gazebo/BlueTransparent</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
       </visual>
       <visual name='lens'>
         <pose>0 0 -0.25 0 0 0</pose>
         <geometry>
-          <cylinder><radius>0.7</radius><length>0.5</length></cylinder>
+          <cylinder><radius>0.07</radius><length>0.05</length></cylinder>
         </geometry>
       </visual>
     </link>
