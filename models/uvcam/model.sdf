@@ -1,0 +1,21 @@
+<?xml version='1.0'?>
+<sdf version ='1.6'>
+  <model name ='uvcam'>
+    <pose>0 0 0 0 0 0</pose>
+    <link name ='link'>
+      <gravity>0</gravity>
+      <pose>0 0 0 0 0 0</pose>
+      <collision name ='collision'>
+        <geometry>
+          <box><size>1 1 1</size></box>
+        </geometry>
+      </collision>
+      <visual name='base'>
+        <geometry>
+          <box><size>1 1 1</size></box>
+        </geometry>
+      </visual>
+    </link>
+    <plugin name='uvcam' filename="libuvcam.so"/>
+  </model>
+</sdf>

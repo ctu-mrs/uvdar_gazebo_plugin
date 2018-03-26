@@ -1,0 +1,32 @@
+<?xml version='1.0'?>
+<sdf version ='1.6'>
+  <model name ='uvled'>
+    <pose>0 0 0 0 0 0</pose>
+    <link name ='link'>
+      <pose>0 0 0 0 0 0</pose>
+      <collision name ='collision'>
+        <geometry>
+          <box><size>1 1 1</size></box>
+        </geometry>
+      </collision>
+      <visual name='base'>
+        <geometry>
+          <sphere><radius>0.5</radius></sphere>
+        </geometry>
+          <material>
+            <script>
+              <name>Gazebo/BlueTransparent</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+      </visual>
+      <visual name='lens'>
+        <pose>0 0 -0.25 0 0 0</pose>
+        <geometry>
+          <cylinder><radius>0.7</radius><length>0.5</length></cylinder>
+        </geometry>
+      </visual>
+    </link>
+    <plugin name='uvled' filename="libuvled.so"/>
+  </model>
+</sdf>
