@@ -3,10 +3,11 @@
   <model name ='uvled'>
     <pose>0 0 0 0 0 0</pose>
     <link name ='link'>
+      <gravity>0</gravity>
       <pose>0 0 0 0 0 0</pose>
       <collision name ='collision'>
         <geometry>
-          <box><size>1 1 1</size></box>
+          <box><size>0.1 0.1 0.1</size></box>
         </geometry>
       </collision>
       <visual name='base'>
@@ -21,7 +22,7 @@
         </material>
       </visual>
       <visual name='lens'>
-        <pose>0 0 -0.25 0 0 0</pose>
+        <pose>0 0 -0.025 0 0 0</pose>
         <geometry>
           <cylinder><radius>0.07</radius><length>0.05</length></cylinder>
         </geometry>
