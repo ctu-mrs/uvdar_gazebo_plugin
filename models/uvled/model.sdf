@@ -28,6 +28,8 @@
         </geometry>
       </visual>
     </link>
-    <plugin name='uvled' filename="libuvled.so"/>
+    <plugin name='uvled' filename="libuvled.so">
+      <frequency>frequency</frequency>
+    </plugin>
   </model>
 </sdf>

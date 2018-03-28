@@ -2,33 +2,43 @@
 #include <gazebo/common/common.hh>
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
+#include <gazebo/rendering/rendering.hh>
 #include <ignition/math/Vector3.hh>
 
 
 namespace gazebo
 {
-class UvLed : public ModelPlugin {
+class UvLed : public VisualPlugin {
 private:
-  int   id;
   float f;
   float T;
   float Th;
     transport::PublisherPtr posePub  ;
-    transport::PublisherPtr statePub ;
+    /* transport::PublisherPtr statePub ; */
 
 public:
-  void Load(physics::ModelPtr _parent, sdf::ElementPtr /*_sdf*/) {
+  void Load(const rendering::VisualPtr _visual, sdf::ElementPtr _sdf) {
 
-    id = 1;
     
-    std::cout << "Initializing LED n. " << id << std::endl;
+    std::cout << "Loading UV LED" << std::endl;
 
     // Store the pointer to the model
-    this->model = _parent;
-    /* std::cout << this->model->GetName()  << std::endl; */
+    this->model = _visual;
+    std::cout << "LED parent name: " << this->model->GetMeshName()  << std::endl;
     
+    std::cout << "LED element : " << _sdf->GetAttribute("name")->GetAsString() << std::endl;
 
-    f  = 10;
+    if (_sdf->HasElement("frequency")) {
+    std::cout << "LED element frequency exists." << std::endl;
+    
+      f = _sdf->GetElement("frequency")->Get<double>();
+    } else {
+    std::cout << "LED defaulting to 10Hz." << std::endl;
+      f = 10.0;  // camera framerate
+    }        
+
+    std::cout << "LED frequency : "<< f << std::endl;
+
     T  = 1.0 / f;
     Th = T / 2.0;
 
@@ -40,13 +50,13 @@ public:
 
 
     char poseTopicName[30];
-    std::sprintf(poseTopicName, "~/uvleds/%d/pose", id);
-    char stateTopicName[30];
-    std::sprintf(stateTopicName, "~/uvleds/%d/state", id);
+    std::sprintf(poseTopicName, "~/uvleds/pose");
+    /* char stateTopicName[30]; */
+    /* std::sprintf(stateTopicName, "~/uvleds/state", id); */
 
 
     posePub  = node->Advertise<msgs::Pose>(poseTopicName);
-    statePub = node->Advertise<msgs::Int>(stateTopicName);
+    /* statePub = node->Advertise<msgs::Int>(stateTopicName); */
     /* statePub->WaitForConnection(); */
     /* posePub->WaitForConnection(); */
 
@@ -63,6 +73,7 @@ public:
 
 public:
   void Init(){
+    std::cout << "Initializing UV LED" << std::endl;
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
   }
   // Called by the world update start event
@@ -70,23 +81,26 @@ public:
   void OnUpdate() {
     /* std::cout << "sending" << std::endl; */
     // Apply a small linear velocity to the model.
-    math::Pose pose  = model->GetWorldPose();
     bool       state = (fmod(common::Time::GetWallTime().Double(), T) > Th);
 
-    /* std::cout << "f: "<< f << std::endl; */
     /* std::cout << "T: "<< T << std::endl; */
     /* std::cout << state << std::endl; */
+    if ((!state) && (f>0.0)){
+      return;
+    }
+    math::Pose pose  = model->GetPose();
+    std::cout << "LED frequency: " << f << std::endl;
     msgs::Pose poseMsg;
-    msgs::Int stateMsg;
     msgs::Set(&poseMsg, pose.Ign());
-    stateMsg.set_data(state);
     posePub->Publish(poseMsg);
-    statePub->Publish(stateMsg);
+    /* msgs::Int stateMsg; */
+    /* stateMsg.set_data(state); */
+    /* statePub->Publish(stateMsg); */
   }
 
   // Pointer to the model
 private:
-  physics::ModelPtr model;
+  rendering::VisualPtr model;
 
   // Pointer to the update event connection
 private:
@@ -94,5 +108,5 @@ private:
 };
 
 // Register this plugin with the simulator
-GZ_REGISTER_MODEL_PLUGIN(UvLed)
+GZ_REGISTER_VISUAL_PLUGIN(UvLed)
 }

@@ -20,6 +20,18 @@
       <uri>model://uvled</uri>
     </include>
 
+    <include>
+      <uri>model://uvled</uri>
+    <pose>1 0 0 0 0 0</pose>
+    <frequency>6.0</frequency>
+    </include>
+    
+    <include>
+      <uri>model://uvled</uri>
+    <pose>-1 0 0 0 0 0</pose>
+    <frequency>15.0</frequency>
+    </include>
+
 
       <!-- <plugin name="uvled" filename="libuvled.so"/> -->
     <!-- <model name ='uvled'> -->
