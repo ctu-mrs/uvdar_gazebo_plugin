@@ -162,7 +162,9 @@ public:
     /*           << "proj: [" << ledProj[1] << ":" << ledProj[0] << "]" << std::endl; */
     /* } */
     imgMtx.lock();
+    if (ledIntensity>0){
     cv::circle(currImage, cv::Point2i(ledProj[1], ledProj[0]), ledIntensity, cv::Scalar(255), -1);
+    }
     imgMtx.unlock();
   }
   /*   ledState[1] = (bool)(i_state->data()); */
