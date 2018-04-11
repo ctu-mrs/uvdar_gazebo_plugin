@@ -13,11 +13,5 @@ target_link_libraries(uvled ${GAZEBO_LIBRARIES})
 add_library(uvcam SHARED src/uvcam.cc include/undistortFunctions/ocam_functions.cpp)
 target_link_libraries(uvcam ${GAZEBO_LIBRARIES} ${OpenCV_LIBRARIES})
 
-install(FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/libuvled.so"
-  "${CMAKE_CURRENT_BINARY_DIR}/libuvcam.so"
-  DESTINATION $ENV{GAZEBO_PLUGIN_PATH}
-  )
-
-
-
+install(TARGETS uvcam uvled
+        LIBRARY DESTINATION $ENV{HOME}/gazebo_local_plugins/)
