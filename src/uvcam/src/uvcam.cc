@@ -138,28 +138,28 @@ public:
     ledIntensity                = round(std::max(.0, cosAngle) * (coef[0] + (coef[1] / ((distance + coef[2]) * (distance + coef[2])))));
 
     /* if (ledIntensity>0){ */
-    std::cout << "CAM: "
-              << "local: [" << sensor->Pose() << "]" << std::endl;
-    std::cout << "CAM: "
-              << "pose: [" << pose << "]" << std::endl;
-    std::cout << "CAM: "
-              << "ledPose: [" << ledPose << "]" << std::endl;
-    std::cout << "CAM: "
-              << "dostance: [" << distance << "]" << std::endl;
-    std::cout << "CAM: "
-              << "ledRot: [" << ledPose.rot << "]" << std::endl;
-    std::cout << "CAM: "
-              << "a: [" << a << "]" << std::endl;
-    std::cout << "CAM: "
-              << "b: [" << b << "]" << std::endl;
-    std::cout << "CAM: "
-              << "cosAngle: [" << cosAngle << "]" << std::endl;
-    std::cout << "CAM: "
-              << "intensity: [" << ledIntensity << "]" << std::endl;
-    std::cout << "CAM: "
-              << "input: [" << input[0] << ":" << input[1] << ":" << input[2] << "]" << std::endl;
-    std::cout << "CAM: "
-              << "proj: [" << ledProj[1] << ":" << ledProj[0] << "]" << std::endl;
+    /* std::cout << "CAM: " */
+    /*           << "local: [" << sensor->Pose() << "]" << std::endl; */
+    /* std::cout << "CAM: " */
+    /*           << "pose: [" << pose << "]" << std::endl; */
+    /* std::cout << "CAM: " */
+    /*           << "ledPose: [" << ledPose << "]" << std::endl; */
+    /* std::cout << "CAM: " */
+    /*           << "dostance: [" << distance << "]" << std::endl; */
+    /* std::cout << "CAM: " */
+    /*           << "ledRot: [" << ledPose.rot << "]" << std::endl; */
+    /* std::cout << "CAM: " */
+    /*           << "a: [" << a << "]" << std::endl; */
+    /* std::cout << "CAM: " */
+    /*           << "b: [" << b << "]" << std::endl; */
+    /* std::cout << "CAM: " */
+    /*           << "cosAngle: [" << cosAngle << "]" << std::endl; */
+    /* std::cout << "CAM: " */
+    /*           << "intensity: [" << ledIntensity << "]" << std::endl; */
+    /* std::cout << "CAM: " */
+    /*           << "input: [" << input[0] << ":" << input[1] << ":" << input[2] << "]" << std::endl; */
+    /* std::cout << "CAM: " */
+    /*           << "proj: [" << ledProj[1] << ":" << ledProj[0] << "]" << std::endl; */
     /* } */
     imgMtx.lock();
     cv::circle(currImage, cv::Point2i(ledProj[1], ledProj[0]), ledIntensity, cv::Scalar(255), -1);
