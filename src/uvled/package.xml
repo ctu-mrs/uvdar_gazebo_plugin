@@ -12,6 +12,8 @@
   <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
   <license>TODO</license>
   <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>image_transport</build_depend>
   <buildtool_depend>gazebo</buildtool_depend>
   <buildtool_depend>roscpp</buildtool_depend>
 
