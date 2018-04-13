@@ -23,6 +23,7 @@ private:
   float                     f;
   float                     T;
   float                     Th;
+  uchar                     background;
   transport::SubscriberPtr  poseSub;
   transport::SubscriberPtr  stateSub;
   math::Pose                pose;
@@ -96,6 +97,8 @@ public:
     char camTopicName[30];
     sprintf(camTopicName, "%s/bluefox/image_raw", parentName.substr(0, parentName.find(":")).c_str());
     pub = it->advertise(camTopicName, 1);
+
+    background = std::rand() % 100;
   }
 
   void Init() {
@@ -109,7 +112,7 @@ public:
 
 private:
   void DrawThread() {
-    ros::Rate r(f);      // 10 h
+    ros::Rate r(f);  // 10 h
     while (ros::ok()) {
       imgMtx.lock();
       cv::GaussianBlur(currImage, currImage, cv::Size(3, 3), 0, 0);
@@ -131,7 +134,7 @@ private:
 
 public:
   void ResetCurrImage() {
-    currImage = cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0));
+    currImage = cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(background));
   }
 
 public:
