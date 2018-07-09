@@ -14,6 +14,8 @@
 #include <opencv2/imgproc.hpp>
 #include <thread>
 
+#define exprate 0.001
+
 
 namespace gazebo
 {
@@ -115,7 +117,8 @@ private:
     ros::Rate r(f);  // 10 h
     while (ros::ok()) {
       imgMtx.lock();
-      cv::GaussianBlur(currImage, currImage, cv::Size(3, 3), 0, 0);
+      /* ros::Duration((1.0 / f) - exprate).sleep(); */
+      /* cv::GaussianBlur(currImage, currImage, cv::Size(3, 3), 0, 0); */
       /* cv::imshow("cv_fl_test", currImage); */
       /* cv::waitKey((int)(T * 1000)); */
 
@@ -152,7 +155,7 @@ public:
     math::Quaternion invOrient = ledPose.rot;
     invOrient.Invert();
     auto   diffPose = (ledPose - pose);
-    double input[3] = {diffPose.pos.x, -diffPose.pos.y, -(diffPose.pos.z)};
+    double input[3] = {-(diffPose.pos.z), -(diffPose.pos.y), -(diffPose.pos.x)};
 
     world2cam(ledProj, input, &oc_model);
     gazebo::math::Pose a        = math::Pose(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
@@ -185,11 +188,12 @@ public:
     /* std::cout << "CAM: " */
     /*           << "proj: [" << ledProj[1] << ":" << ledProj[0] << "]" << std::endl; */
     /* } */
-    imgMtx.lock();
-    if (ledIntensity > 0) {
-      cv::circle(currImage, cv::Point2i(ledProj[1], ledProj[0]), ledIntensity, cv::Scalar(255), -1);
+    if (imgMtx.try_lock()) {
+      if (ledIntensity > 0) {
+        cv::circle(currImage, cv::Point2i(ledProj[1], ledProj[0]), ledIntensity, cv::Scalar(255), -1);
+      }
+      imgMtx.unlock();
     }
-    imgMtx.unlock();
   }
   /*   ledState[1] = (bool)(i_state->data()); */
   /*   /1* std::cout << i_state->data() << std::endl; *1/ */
