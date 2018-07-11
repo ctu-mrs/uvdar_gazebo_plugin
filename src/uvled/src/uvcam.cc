@@ -164,6 +164,9 @@ public:
     double             cosAngle = a.pos.Dot(b.pos) / (distance);
     ledIntensity                = round(std::max(.0, cosAngle) * (coef[0] + (coef[1] / ((distance + coef[2]) * (distance + coef[2])))));
 
+    double radius = sqrt(ledIntensity/M_PI);
+
+
     /* if (ledIntensity>0){ */
     /* std::cout << "CAM: " */
     /*           << "local: [" << sensor->Pose() << "]" << std::endl; */
@@ -190,7 +193,7 @@ public:
     /* } */
     if (imgMtx.try_lock()) {
       if (ledIntensity > 0) {
-        cv::circle(currImage, cv::Point2i(ledProj[1], ledProj[0]), ledIntensity, cv::Scalar(255), -1);
+        cv::circle(currImage, cv::Point2i(ledProj[1], ledProj[0]), radius, cv::Scalar(255), -1);
       }
       imgMtx.unlock();
     }
