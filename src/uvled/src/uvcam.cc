@@ -53,7 +53,6 @@ private:
   sensor_msgs::ImagePtr            msg;
   double                           coef[3] = {1.3398, 31.4704, 0.0154};
   std::mutex                       imgMtx;
-  std::mutex                       crcMtx;
   std::thread                      draw_thread;
   ros::NodeHandle                  nh;
   image_transport::ImageTransport *it;
@@ -153,7 +152,6 @@ private:
       /* std::cout << "beginning: " << elapsedTime << " s" << std::endl; */
 
       shutterOpen = false;
-      imgMtx.lock();
       /* ros::Duration((1.0 / f) - exprate).sleep(); */
       /* cv::GaussianBlur(currImage, currImage, cv::Size(3, 3), 0, 0); */
       /* cv::imshow("cv_fl_test", currImage); */
@@ -175,6 +173,7 @@ private:
       /* std::cout << "publish: " << elapsedTime << " s" << std::endl; */
 
       /* begin = std::clock(); */
+      imgMtx.lock();
       for (int j = 0; j < cvimg.image.rows; j++) {
         for (int i = 0; i < cvimg.image.cols; i++) {
           if (cvimg.image.data[index2d(i, j)] != background)
@@ -212,7 +211,6 @@ public:
   void poseCB(ConstPosePtr &i_pose) {
     if (!shutterOpen)
       return;
-    crcMtx.lock();
     /* math::Pose poseDiff = msgs::ConvertIgn(*i_pose) - pose; */
     /* std::cout << poseDiff.pos.x << std::endl; */
     /* crcMtx.lock(); */
@@ -233,8 +231,8 @@ public:
 
     radius = sqrt(ledIntensity / M_PI);
 
-    if (ledIntensity > 0) {
       count++;
+    if (ledIntensity > 0) {
       if (imgMtx.try_lock()) {
         if (shutterOpen) {
           cv::circle(cvimg.image, cv::Point2i(ledProj[1], ledProj[0]), radius, cv::Scalar(255), -1);
@@ -242,7 +240,6 @@ public:
         imgMtx.unlock();
       }
     }
-    crcMtx.unlock();
   }
   /* crcMtx.unlock(); */
   /*   ledState[1] = (bool)(i_state->data()); */
