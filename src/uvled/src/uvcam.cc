@@ -14,8 +14,9 @@
 #include <opencv2/imgproc.hpp>
 #include <thread>
 
-#define exprate 0.001
+/* #define exprate 0.001 */
 
+#define index2d(X, Y) (oc_model.width * (Y) + (X))
 
 namespace gazebo
 {
@@ -32,17 +33,34 @@ private:
   gazebo::physics::WorldPtr world;
   physics::EntityPtr        parent;
   /* bool                     ledState[20]; */
-  math::Pose                       ledPose;
-  double                           ledProj[2];
-  double                           ledIntensity;
-  struct ocam_model                oc_model;
-  cv::Mat                          currImage;
+  math::Pose       ledPose;
+  math::Quaternion invOrient;
+  math::Pose       diffPose;
+
+  math::Pose a;
+  math::Pose b;
+  double     distance;
+  double     cosAngle;
+
+  double radius;
+
+  double            input[3];
+  double            ledProj[2];
+  double            ledIntensity;
+  struct ocam_model oc_model;
+  /* cv::Mat                          currImage; */
+  cv_bridge::CvImage               cvimg;
+  sensor_msgs::ImagePtr            msg;
   double                           coef[3] = {1.3398, 31.4704, 0.0154};
   std::mutex                       imgMtx;
+  std::mutex                       crcMtx;
   std::thread                      draw_thread;
   ros::NodeHandle                  nh;
   image_transport::ImageTransport *it;
   image_transport::Publisher       pub;
+
+  int  count;
+  bool shutterOpen;
 
 public:
   void Load(sensors::SensorPtr _parent, sdf::ElementPtr _sdf) {
@@ -58,7 +76,7 @@ public:
 
     /* id = 1; */
     if (_sdf->HasElement("framerate")) {
-      f = _sdf->GetElement("framerate")->Get<double>();
+      f = _sdf->GetElement("framerate")->Get< double >();
       std::cout << "LED framerate is " << f << "Hz" << std::endl;
     } else {
       std::cout << "LED framerate defaulting to 70Hz." << std::endl;
@@ -89,7 +107,6 @@ public:
     // Listen to the update event. This event is broadcast every
     /* shutdown(); */
     /* while (true){ */
-    /*   common::Time::MSleep(1000*T); */
 
     /* } */
     char *dummy = NULL;
@@ -107,38 +124,82 @@ public:
     /* for (int i    = 0; i++; i < 20) */
     /* ledState[i] = false; */
     get_ocam_model(&oc_model, (char *)"/home/viktor/gazebo_plugins/src/uvled/config/calib_results.txt");
-    ResetCurrImage();
+    cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0)));
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
     draw_thread            = std::thread(&UvCam::DrawThread, this);
   }
 
 private:
   void DrawThread() {
-    ros::Rate r(f);  // 10 h
-    while (ros::ok()) {
+    /* clock_t       begin, end; */
+    /* double        elapsedTime; */
+    double        time, prevTime;
+    ros::Rate     r(f);  // 10 h
+    ros::Duration exposure(1.0 / (f * 2.0));
+    double        expDur = 1.0 / (f * 2.0);
+    r.reset();
+    time = common::Time::GetWallTime().Double();
+    /* std::cout << "exprate: " << exposure.toSec() << std::endl; */
+    while (true) {
+      /* if (!(ros::Time::useSystemTime())) */
+      /*   std::cout <<  "FUCK" << std::endl; */
+      shutterOpen = true;
+
+      /* begin = std::clock(); */
+      /* common::Time::MSleep(1000*expDur); */
+      exposure.sleep();
+      /* end         = std::clock(); */
+      /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
+      /* std::cout << "beginning: " << elapsedTime << " s" << std::endl; */
+
+      shutterOpen = false;
       imgMtx.lock();
       /* ros::Duration((1.0 / f) - exprate).sleep(); */
       /* cv::GaussianBlur(currImage, currImage, cv::Size(3, 3), 0, 0); */
       /* cv::imshow("cv_fl_test", currImage); */
       /* cv::waitKey((int)(T * 1000)); */
 
-      sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", currImage).toImageMsg();
+      /* begin       = std::clock(); */
+      msg = cvimg.toImageMsg();
+      /* end         = std::clock(); */
+      /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
+      /* std::cout << "message: " << elapsedTime << " s" << std::endl; */
 
+      /* begin = std::clock(); */
       /* ros::Rate loop_rate(5); */
       /* while (nh.ok()) { */
       /* std::cout << "publishing image" << std::endl; */
       pub.publish(msg);
-      ResetCurrImage();
+      /* end         = std::clock(); */
+      /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
+      /* std::cout << "publish: " << elapsedTime << " s" << std::endl; */
+
+      /* begin = std::clock(); */
+      for (int j = 0; j < cvimg.image.rows; j++) {
+        for (int i = 0; i < cvimg.image.cols; i++) {
+          if (cvimg.image.data[index2d(i, j)] != background)
+            (cvimg.image.data[index2d(i, j)] = background);
+        }
+      }
       imgMtx.unlock();
-      r.sleep();
+      /* end         = std::clock(); */
+      /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
+      /* std::cout << "reset: " << elapsedTime << " s" << std::endl; */
+
+      /* begin = std::clock(); */
+      std::cout << "COunt: " << count << std::endl;
+      count = 0;
+      if (!(r.sleep()))
+        std::cout << "LATE! " << r.cycleTime() << " s" << std::endl;
+      /* else */
+      /* std::cout << "ON TIME!" << std::endl; */
+      /* time = common::Time::GetWallTime().Double(); */
+      /* std::cout <<  "From last: "<< time - prevTime << std::endl; */
+      /* prevTime = time; */
       /* cv::waitKey((int)(T * 1000)); */
     }
   }
 
-public:
-  void ResetCurrImage() {
-    currImage = cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(background));
-  }
 
 public:
   void OnUpdate() {
@@ -149,55 +210,41 @@ public:
   // Called by the world update start event
 public:
   void poseCB(ConstPosePtr &i_pose) {
+    if (!shutterOpen)
+      return;
+    crcMtx.lock();
     /* math::Pose poseDiff = msgs::ConvertIgn(*i_pose) - pose; */
     /* std::cout << poseDiff.pos.x << std::endl; */
-    ledPose                    = msgs::ConvertIgn(*i_pose);
-    math::Quaternion invOrient = ledPose.rot;
+    /* crcMtx.lock(); */
+    ledPose   = msgs::ConvertIgn(*i_pose);
+    invOrient = ledPose.rot;
     invOrient.Invert();
-    auto   diffPose = (ledPose - pose);
-    double input[3] = {-(diffPose.pos.z), -(diffPose.pos.y), -(diffPose.pos.x)};
+    diffPose = (ledPose - pose);
+    input[0] = -(diffPose.pos.z);
+    input[1] = -(diffPose.pos.y);
+    input[2] = -(diffPose.pos.x);
 
     world2cam(ledProj, input, &oc_model);
-    gazebo::math::Pose a        = math::Pose(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
-    gazebo::math::Pose b        = math::Pose((pose.pos) - (ledPose.pos), math::Quaternion(0, 0, 0));
-    double             distance = b.pos.GetLength();
-    double             cosAngle = a.pos.Dot(b.pos) / (distance);
-    ledIntensity                = round(std::max(.0, cosAngle) * (coef[0] + (coef[1] / ((distance + coef[2]) * (distance + coef[2])))));
+    a            = math::Pose(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
+    b            = math::Pose((pose.pos) - (ledPose.pos), math::Quaternion(0, 0, 0));
+    distance     = b.pos.GetLength();
+    cosAngle     = a.pos.Dot(b.pos) / (distance);
+    ledIntensity = round(std::max(.0, cosAngle) * (coef[0] + (coef[1] / ((distance + coef[2]) * (distance + coef[2])))));
 
-    double radius = sqrt(ledIntensity/M_PI);
+    radius = sqrt(ledIntensity / M_PI);
 
-
-    /* if (ledIntensity>0){ */
-    /* std::cout << "CAM: " */
-    /*           << "local: [" << sensor->Pose() << "]" << std::endl; */
-    /* std::cout << "CAM: " */
-    /*           << "pose: [" << pose << "]" << std::endl; */
-    /* std::cout << "CAM: " */
-    /*           << "ledPose: [" << ledPose << "]" << std::endl; */
-    /* std::cout << "CAM: " */
-    /*           << "dostance: [" << distance << "]" << std::endl; */
-    /* std::cout << "CAM: " */
-    /*           << "ledRot: [" << ledPose.rot << "]" << std::endl; */
-    /* std::cout << "CAM: " */
-    /*           << "a: [" << a << "]" << std::endl; */
-    /* std::cout << "CAM: " */
-    /*           << "b: [" << b << "]" << std::endl; */
-    /* std::cout << "CAM: " */
-    /*           << "cosAngle: [" << cosAngle << "]" << std::endl; */
-    /* std::cout << "CAM: " */
-    /*           << "intensity: [" << ledIntensity << "]" << std::endl; */
-    /* std::cout << "CAM: " */
-    /*           << "input: [" << input[0] << ":" << input[1] << ":" << input[2] << "]" << std::endl; */
-    /* std::cout << "CAM: " */
-    /*           << "proj: [" << ledProj[1] << ":" << ledProj[0] << "]" << std::endl; */
-    /* } */
-    if (imgMtx.try_lock()) {
-      if (ledIntensity > 0) {
-        cv::circle(currImage, cv::Point2i(ledProj[1], ledProj[0]), radius, cv::Scalar(255), -1);
+    if (ledIntensity > 0) {
+      count++;
+      if (imgMtx.try_lock()) {
+        if (shutterOpen) {
+          cv::circle(cvimg.image, cv::Point2i(ledProj[1], ledProj[0]), radius, cv::Scalar(255), -1);
+        }
+        imgMtx.unlock();
       }
-      imgMtx.unlock();
     }
+    crcMtx.unlock();
   }
+  /* crcMtx.unlock(); */
   /*   ledState[1] = (bool)(i_state->data()); */
   /*   /1* std::cout << i_state->data() << std::endl; *1/ */
 
