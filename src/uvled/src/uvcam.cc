@@ -61,6 +61,8 @@ private:
   int  count;
   bool shutterOpen;
 
+  ros::Duration exposure;
+
 public:
   void Load(sensors::SensorPtr _parent, sdf::ElementPtr _sdf) {
 
@@ -82,8 +84,9 @@ public:
       f = 70.0;  // camera framerat
     }
 
-    T  = 1.0 / f;
-    Th = T * 0.9;
+    T        = 1.0 / f;
+    Th       = T * 0.5;
+    exposure = ros::Duration(Th);
 
 
     transport::NodePtr node(new transport::Node());
@@ -132,26 +135,15 @@ private:
   void DrawThread() {
     /* clock_t       begin, end; */
     /* double        elapsedTime; */
-    double        time, prevTime;
-    ros::Rate     r(f);  // 10 h
-    ros::Duration exposure(1.0 / (f * 2.0));
-    double        expDur = 1.0 / (f * 2.0);
+    double    time, prevTime;
+    ros::Rate r(f);  // 10 h
+    double    expDur = 1.0 / (f * 2.0);
     r.reset();
     time = common::Time::GetWallTime().Double();
     /* std::cout << "exprate: " << exposure.toSec() << std::endl; */
     while (true) {
       /* if (!(ros::Time::useSystemTime())) */
       /*   std::cout <<  "FUCK" << std::endl; */
-      shutterOpen = true;
-
-      /* begin = std::clock(); */
-      /* common::Time::MSleep(1000*expDur); */
-      exposure.sleep();
-      /* end         = std::clock(); */
-      /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
-      /* std::cout << "beginning: " << elapsedTime << " s" << std::endl; */
-
-      shutterOpen = false;
       /* ros::Duration((1.0 / f) - exprate).sleep(); */
       /* cv::GaussianBlur(currImage, currImage, cv::Size(3, 3), 0, 0); */
       /* cv::imshow("cv_fl_test", currImage); */
@@ -205,6 +197,8 @@ public:
     /* std::cout << "sending" << std::endl; */
     // Apply a small linear velocity to the model.
     pose = sensor->Pose() + parent->GetWorldPose().Ign();
+
+    shutterOpen = (fmod(common::Time::GetWallTime().Double(), T) > Th);
   }
   // Called by the world update start event
 public:
@@ -231,14 +225,12 @@ public:
 
     radius = sqrt(ledIntensity / M_PI);
 
-      count++;
+    count++;
     if (ledIntensity > 0) {
-      if (imgMtx.try_lock()) {
-        if (shutterOpen) {
-          cv::circle(cvimg.image, cv::Point2i(ledProj[1], ledProj[0]), radius, cv::Scalar(255), -1);
-        }
-        imgMtx.unlock();
-      }
+      /* if (imgMtx.try_lock()) { */
+      imgMtx.lock();
+        cv::circle(cvimg.image, cv::Point2i(ledProj[1], ledProj[0]), radius, cv::Scalar(255), -1);
+      imgMtx.unlock();
     }
   }
   /* crcMtx.unlock(); */

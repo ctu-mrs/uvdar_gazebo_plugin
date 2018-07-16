@@ -104,10 +104,10 @@ public:
   // Called by the world update start event
 public:
   void OnUpdate() {
-    currTime = ros::Time::now();
-    if ((currTime-prevTime).toSec()<(1.0/(144.0))){
-      return;
-    }
+    /* currTime = ros::Time::now(); */
+    /* if ((currTime-prevTime).toSec()<(1.0/(216.0))){ */
+    /*   return; */
+    /* } */
 
     bool state = (fmod(common::Time::GetWallTime().Double(), T) > Th);
     if ((!state) && (f > 0.0)) {
