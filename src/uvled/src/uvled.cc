@@ -109,7 +109,7 @@ public:
     /*   return; */
     /* } */
 
-    bool state = (fmod(common::Time::GetWallTime().Double(), T) > Th);
+    bool state = (fmod(ros::Time::now().toSec(), T) > Th);
     if ((!state) && (f > 0.0)) {
       return;
     }

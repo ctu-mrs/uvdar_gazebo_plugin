@@ -60,6 +60,7 @@ private:
 
   int  count;
   bool shutterOpen;
+  bool shutterOpenPrev;
 
   ros::Duration exposure;
 
@@ -133,62 +134,6 @@ public:
 
 private:
   void DrawThread() {
-    /* clock_t       begin, end; */
-    /* double        elapsedTime; */
-    double    time, prevTime;
-    ros::Rate r(f);  // 10 h
-    double    expDur = 1.0 / (f * 2.0);
-    r.reset();
-    time = common::Time::GetWallTime().Double();
-    /* std::cout << "exprate: " << exposure.toSec() << std::endl; */
-    while (true) {
-      /* if (!(ros::Time::useSystemTime())) */
-      /*   std::cout <<  "FUCK" << std::endl; */
-      /* ros::Duration((1.0 / f) - exprate).sleep(); */
-      /* cv::GaussianBlur(currImage, currImage, cv::Size(3, 3), 0, 0); */
-      /* cv::imshow("cv_fl_test", currImage); */
-      /* cv::waitKey((int)(T * 1000)); */
-
-      /* begin       = std::clock(); */
-      msg = cvimg.toImageMsg();
-      /* end         = std::clock(); */
-      /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
-      /* std::cout << "message: " << elapsedTime << " s" << std::endl; */
-
-      /* begin = std::clock(); */
-      /* ros::Rate loop_rate(5); */
-      /* while (nh.ok()) { */
-      /* std::cout << "publishing image" << std::endl; */
-      pub.publish(msg);
-      /* end         = std::clock(); */
-      /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
-      /* std::cout << "publish: " << elapsedTime << " s" << std::endl; */
-
-      /* begin = std::clock(); */
-      imgMtx.lock();
-      for (int j = 0; j < cvimg.image.rows; j++) {
-        for (int i = 0; i < cvimg.image.cols; i++) {
-          if (cvimg.image.data[index2d(i, j)] != background)
-            (cvimg.image.data[index2d(i, j)] = background);
-        }
-      }
-      imgMtx.unlock();
-      /* end         = std::clock(); */
-      /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
-      /* std::cout << "reset: " << elapsedTime << " s" << std::endl; */
-
-      /* begin = std::clock(); */
-      std::cout << "COunt: " << count << std::endl;
-      count = 0;
-      if (!(r.sleep()))
-        std::cout << "LATE! " << r.cycleTime() << " s" << std::endl;
-      /* else */
-      /* std::cout << "ON TIME!" << std::endl; */
-      /* time = common::Time::GetWallTime().Double(); */
-      /* std::cout <<  "From last: "<< time - prevTime << std::endl; */
-      /* prevTime = time; */
-      /* cv::waitKey((int)(T * 1000)); */
-    }
   }
 
 
@@ -198,7 +143,27 @@ public:
     // Apply a small linear velocity to the model.
     pose = sensor->Pose() + parent->GetWorldPose().Ign();
 
-    shutterOpen = (fmod(common::Time::GetWallTime().Double(), T) > Th);
+    shutterOpenPrev = shutterOpen;
+    shutterOpen = (fmod(ros::Time::now().toSec(), T) > Th);
+
+    if ((!shutterOpen) && (shutterOpenPrev)) {
+      /* ros::Rate r(f);  // 10 h */
+      /* r.reset(); */
+        imgMtx.lock();
+        msg = cvimg.toImageMsg();
+        pub.publish(msg);
+        for (int j = 0; j < cvimg.image.rows; j++) {
+          for (int i = 0; i < cvimg.image.cols; i++) {
+            if (cvimg.image.data[index2d(i, j)] != background)
+              (cvimg.image.data[index2d(i, j)] = background);
+          }
+        }
+        imgMtx.unlock();
+        /* std::cout << "Count: " << count << std::endl; */
+        count = 0;
+        /* if (!(r.sleep())) */
+        /*   std::cout << "LATE! " << r.cycleTime() << " s" << std::endl; */
+      }
   }
   // Called by the world update start event
 public:
@@ -228,9 +193,11 @@ public:
     count++;
     if (ledIntensity > 0) {
       /* if (imgMtx.try_lock()) { */
-      imgMtx.lock();
+      /* imgMtx.lock(); */
+      /* if (shutterOpen) { */
         cv::circle(cvimg.image, cv::Point2i(ledProj[1], ledProj[0]), radius, cv::Scalar(255), -1);
-      imgMtx.unlock();
+      /* } */
+      /* imgMtx.unlock(); */
     }
   }
   /* crcMtx.unlock(); */
