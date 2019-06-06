@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package>
-  <name>uvled</name>
+  <name>uvdar_gazebo_plugin</name>
   <version>1.0.0</version>
   <description>The UV LED Gazebo package</description>
 
