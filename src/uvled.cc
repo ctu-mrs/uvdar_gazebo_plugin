@@ -24,7 +24,7 @@ private:
   physics::EntityPtr        parent;
   std::thread               pub_thread;
   sensors::SensorPtr        sensor;
-  math::Pose                pose;
+  ignition::math::Pose3d                pose;
   msgs::Pose                poseMsg;
   std::mutex                pubMutex;
 
@@ -38,7 +38,7 @@ public:
     this->sensor           = _sensor;
     world                  = physics::get_world("default");
     std::string parentName = sensor->ParentName();
-    parent                 = world->GetEntity(parentName);
+    parent                 = world->EntityByName(parentName);
     std::cout << _sdf->GetParent()->GetName() << std::endl;
     std::cout << _sdf->GetParent()->GetElement("plugin")->Get< std::string >("name") << std::endl;
     /* std::cout << "LED parent name: " << _sdf->GetParent()->GetElement("visual")->GetElement("Pose")->GetValue() << std::endl; */
@@ -114,8 +114,8 @@ public:
       return;
     }
 
-    pose = sensor->Pose() + parent->GetWorldPose().Ign();
-    msgs::Set(&poseMsg, pose.Ign());
+    pose = sensor->Pose() + parent->WorldPose();
+    msgs::Set(&poseMsg, pose);
     posePub->Publish(poseMsg);
                                 prevTime = currTime;
   }
