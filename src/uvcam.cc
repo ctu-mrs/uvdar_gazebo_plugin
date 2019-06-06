@@ -8,6 +8,7 @@
 #include <gazebo/physics/physics.hh>
 #include <gazebo/sensors/sensors.hh>
 #include <ignition/math/Vector3.hh>
+#include <ignition/math/Pose3.hh>
 #include <mutex>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
@@ -18,6 +19,7 @@
 
 #define index2d(X, Y) (oc_model.width * (Y) + (X))
 
+/* using namespace ignition; */
 namespace gazebo
 {
 class UvCam : public SensorPlugin {
@@ -29,16 +31,16 @@ private:
   uchar                     background;
   transport::SubscriberPtr  poseSub;
   transport::SubscriberPtr  stateSub;
-  math::Pose                pose;
+  ignition::math::Pose3d                pose;
   gazebo::physics::WorldPtr world;
   physics::EntityPtr        parent;
   /* bool                     ledState[20]; */
-  math::Pose       ledPose;
-  math::Quaternion invOrient;
-  math::Pose       diffPose;
+  ignition::math::Pose3d       ledPose;
+  ignition::math::Quaternion<double> invOrient;
+  ignition::math::Pose3d       diffPose;
 
-  math::Pose a;
-  math::Pose b;
+  ignition::math::Pose3d a;
+  ignition::math::Pose3d b;
   double     distance;
   double     cosAngle;
 
@@ -73,7 +75,7 @@ public:
     this->sensor           = _parent;
     world                  = physics::get_world("default");
     std::string parentName = sensor->ParentName();
-    parent                 = world->GetEntity(parentName);
+    parent                 = world->EntityByName(parentName);
     std::cout << "Camera parent name: " << this->sensor->ScopedName() << std::endl;
 
     /* id = 1; */
@@ -141,7 +143,7 @@ public:
   void OnUpdate() {
     /* std::cout << "sending" << std::endl; */
     // Apply a small linear velocity to the model.
-    pose = sensor->Pose() + parent->GetWorldPose().Ign();
+    pose = sensor->Pose() + parent->WorldPose();
 
     shutterOpenPrev = shutterOpen;
     shutterOpen = (fmod(ros::Time::now().toSec(), T) > Th);
@@ -170,22 +172,22 @@ public:
   void poseCB(ConstPosePtr &i_pose) {
     if (!shutterOpen)
       return;
-    /* math::Pose poseDiff = msgs::ConvertIgn(*i_pose) - pose; */
-    /* std::cout << poseDiff.pos.x << std::endl; */
+    /* ignition::math::Pose3d poseDiff = msgs::ConvertIgn(*i_pose) - pose; */
+    /* std::cout << poseDiff.Pos().X() << std::endl; */
     /* crcMtx.lock(); */
     ledPose   = msgs::ConvertIgn(*i_pose);
-    invOrient = ledPose.rot;
+    invOrient = ledPose.Rot();
     invOrient.Invert();
     diffPose = (ledPose - pose);
-    input[0] = -(diffPose.pos.z);
-    input[1] = -(diffPose.pos.y);
-    input[2] = -(diffPose.pos.x);
+    input[0] = -(diffPose.Pos().Z());
+    input[1] = -(diffPose.Pos().Y());
+    input[2] = -(diffPose.Pos().X());
 
     world2cam(ledProj, input, &oc_model);
-    a            = math::Pose(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
-    b            = math::Pose((pose.pos) - (ledPose.pos), math::Quaternion(0, 0, 0));
-    distance     = b.pos.GetLength();
-    cosAngle     = a.pos.Dot(b.pos) / (distance);
+    a            = ignition::math::Pose3d(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
+    b            = ignition::math::Pose3d((pose.Pos()) - (ledPose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
+    distance     = b.Pos().Length();
+    cosAngle     = a.Pos().Dot(b.Pos()) / (distance);
     ledIntensity = round(std::max(.0, cosAngle) * (coef[0] + (coef[1] / ((distance + coef[2]) * (distance + coef[2])))));
 
     radius = sqrt(ledIntensity / M_PI);
