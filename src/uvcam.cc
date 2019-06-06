@@ -79,8 +79,8 @@ public:
     parent                 = world->EntityByName(parentName);
     std::cout << "Camera parent name: " << this->sensor->ScopedName() << std::endl;
 
-    if (_sdf->HasElement("calib_file_path")) {
-      filename = _sdf->GetElement("framerate")->Get< std::string >();
+    if (_sdf->HasElement("calibration_file")) {
+      filename = _sdf->GetElement("calibration_file")->Get< std::string >();
     }
     else {
       std::cerr << "No calibration file provided. Exiting" << std::endl;
@@ -137,7 +137,7 @@ public:
     /* for (int i    = 0; i++; i < 20) */
     /* ledState[i] = false; */
 
-    get_ocam_model(&oc_model, filename.c_str());
+    get_ocam_model(&oc_model, (char*)(filename.c_str()));
     cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0)));
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
     draw_thread            = std::thread(&UvCam::DrawThread, this);
