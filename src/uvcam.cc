@@ -119,7 +119,7 @@ public:
     ros::init(zero, &dummy, "uv_bluefox_emulator");
     it = new image_transport::ImageTransport(nh);
     char camTopicName[30];
-    sprintf(camTopicName, "%s/bluefox/image_raw", parentName.substr(0, parentName.find(":")).c_str());
+    sprintf(camTopicName, "%s/uvdar_bluefox/image_raw", parentName.substr(0, parentName.find(":")).c_str());
     pub = it->advertise(camTopicName, 1);
 
     background = std::rand() % 100;
