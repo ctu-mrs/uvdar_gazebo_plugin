@@ -116,7 +116,7 @@ public:
     /* } */
     char *dummy = NULL;
     int   zero  = 0;
-    ros::init(zero, &dummy, "uv_bluefox_emulator");
+    ros::init(zero, &dummy, "uvdar_bluefox_emulator");
     it = new image_transport::ImageTransport(nh);
     char camTopicName[30];
     sprintf(camTopicName, "%s/uvdar_bluefox/image_raw", parentName.substr(0, parentName.find(":")).c_str());
@@ -128,7 +128,7 @@ public:
   void Init() {
     /* for (int i    = 0; i++; i < 20) */
     /* ledState[i] = false; */
-    get_ocam_model(&oc_model, (char *)"/home/viktor/gazebo_plugins/src/uvled/config/calib_results.txt");
+    get_ocam_model(&oc_model, (char *)"calib_results.txt");
     cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0)));
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
     draw_thread            = std::thread(&UvCam::DrawThread, this);
