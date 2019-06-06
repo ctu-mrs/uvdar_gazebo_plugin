@@ -63,6 +63,7 @@ private:
   int  count;
   bool shutterOpen;
   bool shutterOpenPrev;
+  std::string filename;
 
   ros::Duration exposure;
 
@@ -78,6 +79,13 @@ public:
     parent                 = world->EntityByName(parentName);
     std::cout << "Camera parent name: " << this->sensor->ScopedName() << std::endl;
 
+    if (_sdf->HasElement("calib_file_path")) {
+      filename = _sdf->GetElement("framerate")->Get< std::string >();
+    }
+    else {
+      std::cerr << "No calibration file provided. Exiting" << std::endl;
+      return;
+      }
     /* id = 1; */
     if (_sdf->HasElement("framerate")) {
       f = _sdf->GetElement("framerate")->Get< double >();
@@ -128,7 +136,8 @@ public:
   void Init() {
     /* for (int i    = 0; i++; i < 20) */
     /* ledState[i] = false; */
-    get_ocam_model(&oc_model, (char *)"calib_results.txt");
+
+    get_ocam_model(&oc_model, filename.c_str());
     cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0)));
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
     draw_thread            = std::thread(&UvCam::DrawThread, this);
