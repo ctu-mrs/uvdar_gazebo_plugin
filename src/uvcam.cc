@@ -81,6 +81,7 @@ public:
 
     if (_sdf->HasElement("calibration_file")) {
       filename = _sdf->GetElement("calibration_file")->Get< std::string >();
+      std::cout << "Calibration file is " << filename << std::endl;
     }
     else {
       std::cerr << "No calibration file provided. Exiting" << std::endl;
