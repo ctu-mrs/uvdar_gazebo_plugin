@@ -24,6 +24,8 @@ namespace gazebo
 {
 class UvCam : public SensorPlugin {
 private:
+  std::mutex mtx_buffer;
+  std::vector<std::pair<ignition::math::Pose3d,ignition::math::Pose3d>> buffer;
   int                       id;
   float                     f;
   float                     T;
@@ -161,7 +163,13 @@ public:
     if ((!shutterOpen) && (shutterOpenPrev)) {
       /* ros::Rate r(f);  // 10 h */
       /* r.reset(); */
-        imgMtx.lock();
+        /* imgMtx.lock(); */
+        /* std::scoped_lock lock(mtx_buffer); */
+        mtx_buffer.lock();
+        for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){
+          drawPose(i);
+        }
+        mtx_buffer.unlock();
         msg = cvimg.toImageMsg();
         pub.publish(msg);
         for (int j = 0; j < cvimg.image.rows; j++) {
@@ -170,6 +178,7 @@ public:
               (cvimg.image.data[index2d(i, j)] = background);
           }
         }
+        /* cvimg.image = cv::Scalar(background); */
         imgMtx.unlock();
         /* std::cout << "Count: " << count << std::endl; */
         count = 0;
@@ -182,10 +191,18 @@ public:
   void poseCB(ConstPosePtr &i_pose) {
     if (!shutterOpen)
       return;
+
+    mtx_buffer.lock();
     /* ignition::math::Pose3d poseDiff = msgs::ConvertIgn(*i_pose) - pose; */
     /* std::cout << poseDiff.Pos().X() << std::endl; */
     /* crcMtx.lock(); */
     ledPose   = msgs::ConvertIgn(*i_pose);
+    buffer.push_back(std::pair<ignition::math::Pose3d,ignition::math::Pose3d>(ledPose,pose));
+    mtx_buffer.unlock();
+  }
+  void drawPose(std::pair<ignition::math::Pose3d,ignition::math::Pose3d> input_poses){
+    ignition::math::Pose3d ledPose = input_poses.first;
+    ignition::math::Pose3d pose = input_poses.second;
     invOrient = ledPose.Rot();
     invOrient.Invert();
     diffPose = (ledPose - pose);

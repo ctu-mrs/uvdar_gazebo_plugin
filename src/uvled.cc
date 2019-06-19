@@ -15,6 +15,7 @@ namespace gazebo
 class UvLed : public SensorPlugin {
 private:
   int                     n;
+  double                  updatePeriod;
   float                   f;
   float                   T;
   float                   Th;
@@ -67,6 +68,8 @@ public:
     T  = 1.0 / f;
     Th = T / 2.0;
 
+    updatePeriod = 1.0/216.0;
+
 
     transport::NodePtr node(new transport::Node());
     node->Init();
@@ -104,10 +107,11 @@ public:
   // Called by the world update start event
 public:
   void OnUpdate() {
-    /* currTime = ros::Time::now(); */
-    /* if ((currTime-prevTime).toSec()<(1.0/(216.0))){ */
-    /*   return; */
-    /* } */
+    currTime = ros::Time::now();
+    if ((currTime-prevTime).toSec()<(updatePeriod)){
+      /* std::cout << "HAPPENING" << std::endl; */
+      return;
+    }
 
     bool state = (fmod(ros::Time::now().toSec(), T) > Th);
     if ((!state) && (f > 0.0)) {
@@ -117,7 +121,7 @@ public:
     pose = sensor->Pose() + parent->WorldPose();
     msgs::Set(&poseMsg, pose);
     posePub->Publish(poseMsg);
-                                prevTime = currTime;
+    prevTime = currTime;
   }
 
   // Pointer to the sensor
