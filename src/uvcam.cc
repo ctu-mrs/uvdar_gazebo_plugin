@@ -56,13 +56,13 @@ private:
   cv_bridge::CvImage               cvimg;
   sensor_msgs::ImagePtr            msg;
   double                           coef[3] = {1.3398, 31.4704, 0.0154};
-  std::mutex                       imgMtx;
+  /* std::mutex                       imgMtx; */
   std::thread                      draw_thread;
   ros::NodeHandle                  nh;
   image_transport::ImageTransport *it;
   image_transport::Publisher       pub;
 
-  int  count;
+  /* int  count; */
   bool shutterOpen;
   bool shutterOpenPrev;
   std::string filename;
@@ -143,11 +143,47 @@ public:
     get_ocam_model(&oc_model, (char*)(filename.c_str()));
     cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0)));
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
+      /* std::cout << "Calling draw thread..." << std::endl; */
     draw_thread            = std::thread(&UvCam::DrawThread, this);
   }
 
 private:
   void DrawThread() {
+    ros::Rate rt(f);
+    ros::Duration hd((rt.expectedCycleTime().toSec()/2.0));
+    while (ros::ok()){
+      shutterOpen =true;
+      hd.sleep();
+      shutterOpen = false;
+      for (int j = 0; j < cvimg.image.rows; j++) {
+        for (int i = 0; i < cvimg.image.cols; i++) {
+          if (cvimg.image.data[index2d(i, j)] != background)
+            (cvimg.image.data[index2d(i, j)] = background);
+        }
+      }
+      /* cvimg.image = cv::Scalar(background); */
+      /* imgMtx.unlock(); */
+      /* std::cout << "DT: buffer size: " << buffer.size() << std::endl; */
+      mtx_buffer.lock();
+      for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){
+        /* std::cout << "Drawing..." << std::endl; */
+        drawPose(i);
+      }
+      /* std::cout << "Finished drawing; clearing buffer..." << std::endl; */
+      buffer.clear();
+      /* std::cout << "Buffer cleared" << std::endl; */
+      /* std::cout << "DT: Unlocking mutex..." << std::endl; */
+      mtx_buffer.unlock();
+
+      msg = cvimg.toImageMsg();
+      /* std::cout << "Publishing..." << std::endl; */
+      pub.publish(msg);
+      /* std::cout << "Count: " << count << std::endl; */
+      /* count = 0; */
+      /* if (!(r.sleep())) */
+      /*   std::cout << "LATE! " << r.cycleTime() << " s" << std::endl; */
+      rt.sleep();
+    }
   }
 
 
@@ -157,50 +193,40 @@ public:
     // Apply a small linear velocity to the model.
     pose = sensor->Pose() + parent->WorldPose();
 
-    shutterOpenPrev = shutterOpen;
-    shutterOpen = (fmod(ros::Time::now().toSec(), T) > Th);
+    /* shutterOpenPrev = shutterOpen; */
+    /* shutterOpen = (fmod(ros::Time::now().toSec(), T) > Th); */
 
-    if ((!shutterOpen) && (shutterOpenPrev)) {
+    /* if ((!shutterOpen) && (shutterOpenPrev)) { */
+      /* /1* std::cout << "Joining draw thread..." << std::endl; *1/ */
+      /* /1* draw_thread.join(); *1/ */
+      /* } */
       /* ros::Rate r(f);  // 10 h */
       /* r.reset(); */
         /* imgMtx.lock(); */
         /* std::scoped_lock lock(mtx_buffer); */
-        mtx_buffer.lock();
-        for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){
-          drawPose(i);
-        }
-        mtx_buffer.unlock();
-        msg = cvimg.toImageMsg();
-        pub.publish(msg);
-        for (int j = 0; j < cvimg.image.rows; j++) {
-          for (int i = 0; i < cvimg.image.cols; i++) {
-            if (cvimg.image.data[index2d(i, j)] != background)
-              (cvimg.image.data[index2d(i, j)] = background);
-          }
-        }
-        /* cvimg.image = cv::Scalar(background); */
-        imgMtx.unlock();
-        /* std::cout << "Count: " << count << std::endl; */
-        count = 0;
-        /* if (!(r.sleep())) */
-        /*   std::cout << "LATE! " << r.cycleTime() << " s" << std::endl; */
-      }
   }
   // Called by the world update start event
 public:
   void poseCB(ConstPosePtr &i_pose) {
+    /* std::cout << "Got pose..." << std::endl; */
     if (!shutterOpen)
       return;
 
-    mtx_buffer.lock();
+    /* std::cout << "Shutter is opened" << std::endl; */
+
     /* ignition::math::Pose3d poseDiff = msgs::ConvertIgn(*i_pose) - pose; */
     /* std::cout << poseDiff.Pos().X() << std::endl; */
     /* crcMtx.lock(); */
     ledPose   = msgs::ConvertIgn(*i_pose);
+    /* std::cout << "CB: Locking mutex..." << std::endl; */
+    mtx_buffer.lock();
+    /* std::cout << "Pushing poses to buffer..." << std::endl; */
     buffer.push_back(std::pair<ignition::math::Pose3d,ignition::math::Pose3d>(ledPose,pose));
+    /* std::cout << "CB: Unlocking mutex..." << std::endl; */
     mtx_buffer.unlock();
   }
   void drawPose(std::pair<ignition::math::Pose3d,ignition::math::Pose3d> input_poses){
+    /* std::cout << "A" << std::endl; */
     ignition::math::Pose3d ledPose = input_poses.first;
     ignition::math::Pose3d pose = input_poses.second;
     invOrient = ledPose.Rot();
@@ -210,6 +236,7 @@ public:
     input[1] = -(diffPose.Pos().Y());
     input[2] = -(diffPose.Pos().X());
 
+    /* std::cout << "B" << std::endl; */
     world2cam(ledProj, input, &oc_model);
     a            = ignition::math::Pose3d(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
     b            = ignition::math::Pose3d((pose.Pos()) - (ledPose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
@@ -219,12 +246,16 @@ public:
 
     radius = sqrt(ledIntensity / M_PI);
 
-    count++;
+    /* std::cout << "C" << std::endl; */
+
+    /* count++; */
     if (ledIntensity > 0) {
       /* if (imgMtx.try_lock()) { */
       /* imgMtx.lock(); */
       /* if (shutterOpen) { */
+    /* std::cout << "D" << std::endl; */
         cv::circle(cvimg.image, cv::Point2i(ledProj[1], ledProj[0]), radius, cv::Scalar(255), -1);
+    /* std::cout << "E" << std::endl; */
       /* } */
       /* imgMtx.unlock(); */
     }
