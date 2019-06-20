@@ -150,7 +150,7 @@ public:
 private:
   void DrawThread() {
     ros::Rate rt(f);
-    ros::Duration hd((rt.expectedCycleTime().toSec()/2.0));
+    ros::Duration hd((rt.expectedCycleTime().toSec()*0.75));
     while (ros::ok()){
       shutterOpen =true;
       hd.sleep();
