@@ -176,6 +176,7 @@ private:
       mtx_buffer.unlock();
 
       msg = cvimg.toImageMsg();
+      msg->header.stamp = ros::Time::now();
       /* std::cout << "Publishing..." << std::endl; */
       pub.publish(msg);
       /* std::cout << "Count: " << count << std::endl; */
