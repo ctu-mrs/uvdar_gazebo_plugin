@@ -88,7 +88,7 @@ public:
     else {
       std::cerr << "No calibration file provided. Exiting" << std::endl;
       return;
-      }
+    }
     /* id = 1; */
     if (_sdf->HasElement("framerate")) {
       f = _sdf->GetElement("framerate")->Get< double >();
@@ -129,9 +129,14 @@ public:
     int   zero  = 0;
     ros::init(zero, &dummy, "uvdar_bluefox_emulator");
     it = new image_transport::ImageTransport(nh);
-    char camTopicName[30];
-    sprintf(camTopicName, "%s/uvdar_bluefox/image_raw", parentName.substr(0, parentName.find(":")).c_str());
-    pub = it->advertise(camTopicName, 1);
+    std::string publish_topic;
+    if (_sdf->HasElement("camera_publish_topic")) {
+      publish_topic = _sdf->GetElement("camera_publish_topic")->Get<std::string>();
+    } else {
+      publish_topic = parentName.substr(0, parentName.find(":")) + "/uvdar_bluefox/image_raw";
+    }
+    std::cout << "Publishing UV Camera to topic: \"" << publish_topic << "\"" << std::endl;
+    pub = it->advertise(publish_topic, 1);
 
     background = std::rand() % 100;
   }
