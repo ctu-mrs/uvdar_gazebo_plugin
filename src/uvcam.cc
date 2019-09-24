@@ -9,11 +9,14 @@
 #include <gazebo/sensors/sensors.hh>
 #include <ignition/math/Vector3.hh>
 #include <ignition/math/Pose3.hh>
+#include <thread>
 #include <mutex>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <thread>
+#include <unordered_map>
+#include <ObjectMgr/LedMgr.h>
+#include <std_msgs/Float64.h>
 
 /* #define exprate 0.001 */
 
@@ -24,8 +27,10 @@ namespace gazebo
 {
 class UvCam : public SensorPlugin {
 private:
-  std::mutex mtx_buffer;
-  std::vector<std::pair<ignition::math::Pose3d,ignition::math::Pose3d>> buffer;
+  /* variables //{ */
+  /* std::mutex mtx_buffer; */
+  boost::mutex mtx_leds;
+  /* std::vector<std::pair<ignition::math::Pose3d,ignition::math::Pose3d>> buffer; */
   int                       id;
   float                     f;
   float                     T;
@@ -33,6 +38,7 @@ private:
   uchar                     background;
   transport::SubscriberPtr  poseSub;
   transport::SubscriberPtr  stateSub;
+  ros::Subscriber           linkSub;
   ignition::math::Pose3d                pose;
   gazebo::physics::WorldPtr world;
   physics::EntityPtr        parent;
@@ -52,25 +58,34 @@ private:
   double            ledProj[2];
   double            ledIntensity;
   struct ocam_model oc_model;
-  /* cv::Mat                          currImage; */
   cv_bridge::CvImage               cvimg;
   sensor_msgs::ImagePtr            msg;
   double                           coef[3] = {1.3398, 31.4704, 0.0154};
-  /* std::mutex                       imgMtx; */
   std::thread                      draw_thread;
   ros::NodeHandle                  nh;
   image_transport::ImageTransport *it;
   image_transport::Publisher       pub;
 
-  /* int  count; */
-  bool shutterOpen;
-  bool shutterOpenPrev;
   std::string filename;
 
   ros::Duration exposure;
 
+  std::unordered_map<std::string, std::shared_ptr<LedMgr> > _leds_by_name_;
+
+  mrs_lib::ParamLoader *pl;
+
+  sensors::SensorPtr sensor;
+  // Pointer to the update event connection
+  event::ConnectionPtr updateConnection;
+
+  //}
+
 public:
+
+/* Load //{ */
   void Load(sensors::SensorPtr _parent, sdf::ElementPtr _sdf) {
+
+    
 
     std::cout << "Initializing UV camera" << std::endl;
 
@@ -104,6 +119,9 @@ public:
 
 
     transport::NodePtr node(new transport::Node());
+    nh = ros::NodeHandle("~");
+    pl = new mrs_lib::ParamLoader(nh);
+
     node->Init();
 
 
@@ -113,10 +131,12 @@ public:
     /* std::sprintf(stateTopicName, "~/uvleds/state", id); */
 
 
-    poseSub = node->Subscribe(poseTopicName, &UvCam::poseCB, this, false);
+    /* poseSub = node->Subscribe(poseTopicName, &UvCam::poseCB, this, false); */
     /* stateSub = node->Subscribe(stateTopicName, &UvCam::stateCB, this, false); */
     /* statePub->WaitForConnection(); */
     /* posePub->WaitForConnection(); */
+
+    linkSub = nh.subscribe("/gazebo/link_states", 1, &UvCam::linkCallback, this);
 
 
     /* transport::fini(); */
@@ -140,7 +160,9 @@ public:
 
     background = std::rand() % 100;
   }
+  //}
 
+  /* Init //{ */
   void Init() {
     /* for (int i    = 0; i++; i < 20) */
     /* ledState[i] = false; */
@@ -148,52 +170,41 @@ public:
     get_ocam_model(&oc_model, (char*)(filename.c_str()));
     cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0)));
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
-      /* std::cout << "Calling draw thread..." << std::endl; */
+
     draw_thread            = std::thread(&UvCam::DrawThread, this);
   }
+  //}
 
 private:
+  /* DrawThread //{ */
   void DrawThread() {
     ros::Rate rt(f);
-    ros::Duration hd((rt.expectedCycleTime().toSec()*0.75));
+    geometry_msgs::Pose cur_pose;
     while (ros::ok()){
-      shutterOpen =true;
-      hd.sleep();
-      shutterOpen = false;
-      for (int j = 0; j < cvimg.image.rows; j++) {
-        for (int i = 0; i < cvimg.image.cols; i++) {
-          if (cvimg.image.data[index2d(i, j)] != background)
-            (cvimg.image.data[index2d(i, j)] = background);
+      boost::mutex::scoped_lock lock(mtx_leds);
+        //CHECK: Optimize the following
+        for (int j = 0; j < cvimg.image.rows; j++) {
+          for (int i = 0; i < cvimg.image.cols; i++) {
+            if (cvimg.image.data[index2d(i, j)] != background)
+              (cvimg.image.data[index2d(i, j)] = background);
+          }
         }
+      /* for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){ */
+    for (auto led : _leds_by_name_){
+      if (led.second->get_pose(cur_pose)){
+        drawPose({cur_pose,pose});
       }
-      /* cvimg.image = cv::Scalar(background); */
-      /* imgMtx.unlock(); */
-      /* std::cout << "DT: buffer size: " << buffer.size() << std::endl; */
-      mtx_buffer.lock();
-      for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){
-        /* std::cout << "Drawing..." << std::endl; */
-        drawPose(i);
-      }
-      /* std::cout << "Finished drawing; clearing buffer..." << std::endl; */
-      buffer.clear();
-      /* std::cout << "Buffer cleared" << std::endl; */
-      /* std::cout << "DT: Unlocking mutex..." << std::endl; */
-      mtx_buffer.unlock();
-
+    }
       msg = cvimg.toImageMsg();
       msg->header.stamp = ros::Time::now();
-      /* std::cout << "Publishing..." << std::endl; */
       pub.publish(msg);
-      /* std::cout << "Count: " << count << std::endl; */
-      /* count = 0; */
-      /* if (!(r.sleep())) */
-      /*   std::cout << "LATE! " << r.cycleTime() << " s" << std::endl; */
       rt.sleep();
     }
   }
-
+  //}
 
 public:
+/* OnUpdate //{ */
   void OnUpdate() {
     /* std::cout << "sending" << std::endl; */
     // Apply a small linear velocity to the model.
@@ -210,28 +221,133 @@ public:
       /* r.reset(); */
         /* imgMtx.lock(); */
         /* std::scoped_lock lock(mtx_buffer); */
+    /* std::cout << "Found objects: " << std::endl; */
+    /* for (auto object : _leds_by_name_){ */
+    /*   std::cout << object.first << std::endl; */
+    /* } */
+    /* std::cout << "---" << std::endl; */
   }
   // Called by the world update start event
+  //}
+  
 public:
-  void poseCB(ConstPosePtr &i_pose) {
-    /* std::cout << "Got pose..." << std::endl; */
-    if (!shutterOpen)
-      return;
 
-    /* std::cout << "Shutter is opened" << std::endl; */
+/* linkCallback //{ */
+void linkCallback(const gazebo_msgs::LinkStates link_states)
+{
+	const std::vector<std::string>& names = link_states.name;
+	const std::vector<geometry_msgs::Pose>& poses = link_states.pose;
+  
+	for (size_t it = 0; it < names.size(); ++it) 
+  {
+    const std::string& cur_name = names.at(it);
+    const size_t prependix_pos = cur_name.find_first_of("::");
+		const std::string cur_model_name = cur_name.substr(0, prependix_pos);
+		const std::string cur_link_name = cur_name.substr(prependix_pos+2);
 
-    /* ignition::math::Pose3d poseDiff = msgs::ConvertIgn(*i_pose) - pose; */
-    /* std::cout << poseDiff.Pos().X() << std::endl; */
-    /* crcMtx.lock(); */
-    ledPose   = msgs::ConvertIgn(*i_pose);
-    /* std::cout << "CB: Locking mutex..." << std::endl; */
-    mtx_buffer.lock();
-    /* std::cout << "Pushing poses to buffer..." << std::endl; */
-    buffer.push_back(std::pair<ignition::math::Pose3d,ignition::math::Pose3d>(ledPose,pose));
-    /* std::cout << "CB: Unlocking mutex..." << std::endl; */
-    mtx_buffer.unlock();
+
+    /* std::cout << "pose of " << cur_name << ": " << std::endl; */
+    /* std::cout << poses.at(it) << std::endl; */
+
+    if (cur_link_name.find("_uvled_") != std::string::npos){
+      if (_leds_by_name_.count(cur_link_name) != 0){
+        boost::mutex::scoped_lock lock(mtx_leds);
+        _leds_by_name_.at(cur_link_name)->update_link_pose(cur_link_name, poses.at(it));
+      }
+      else{
+        boost::mutex::scoped_lock lock(mtx_leds);
+        std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh, *pl, cur_name);
+        _leds_by_name_.insert({cur_link_name, led});
+        nh.subscribe("/gazebo/ledProperties/"+cur_link_name+"/frequency", 1, &UvCam::frequencyCallback,this);
+      }
+    }
+	}
+
+}
+//}
+
+/* void measurementCallback(const geometry_msgs::PoseWithCovarianceStampedPtr& meas){ */
+void frequencyCallback(const ros::MessageEvent<std_msgs::Float64 const>& event){
+    ros::M_string mhdr = event.getConnectionHeader();
+    std::string topic = mhdr["topic"];
+    std::string link_name = topic.substr(std::string("/gazebo/ledProperties/").length(),topic.length()-std::string("/frequency").length());
+    std::cout << "link name is: " << link_name << std::endl;
+}
+//}
+
+/* poseCB //{ */
+  /* void poseCB(ConstPosePtr &i_pose) { */
+  /*   /1* std::cout << "Got pose..." << std::endl; *1/ */
+  /*   if (!shutterOpen) */
+  /*     return; */
+
+  /*   /1* std::cout << "Shutter is opened" << std::endl; *1/ */
+
+  /*   /1* ignition::math::Pose3d poseDiff = msgs::ConvertIgn(*i_pose) - pose; *1/ */
+  /*   /1* std::cout << poseDiff.Pos().X() << std::endl; *1/ */
+  /*   /1* crcMtx.lock(); *1/ */
+  /*   ledPose   = msgs::ConvertIgn(*i_pose); */
+  /*   /1* std::cout << "CB: Locking mutex..." << std::endl; *1/ */
+  /*   mtx_buffer.lock(); */
+  /*   /1* std::cout << "Pushing poses to buffer..." << std::endl; *1/ */
+  /*   buffer.push_back(std::pair<ignition::math::Pose3d,ignition::math::Pose3d>(ledPose,pose)); */
+  /*   /1* std::cout << "CB: Unlocking mutex..." << std::endl; *1/ */
+  /*   mtx_buffer.unlock(); */
+  /* } */
+//}
+
+/* drawPose //{ */
+  void drawPose(std::pair<geometry_msgs::Pose,ignition::math::Pose3d> input_poses){
+    /* std::cout << "A" << std::endl; */
+    ignition::math::Pose3d ledPose(
+        input_poses.first.position.x,
+        input_poses.first.position.y,
+        input_poses.first.position.z,
+        input_poses.first.orientation.w,
+        input_poses.first.orientation.x,
+        input_poses.first.orientation.y,
+        input_poses.first.orientation.z
+        );
+
+    ignition::math::Pose3d pose = input_poses.second;
+    invOrient = ledPose.Rot();
+    invOrient.Invert();
+    diffPose = (ledPose - pose);
+    input[0] = -(diffPose.Pos().Z());
+    input[1] = -(diffPose.Pos().Y());
+    input[2] = -(diffPose.Pos().X());
+
+    /* std::cout << "input: " << std::endl; */
+    /* std::cout << input_poses.first << std::endl; */
+    /* std::cout << "converted: " << std::endl; */
+    /* std::cout << ledPose << std::endl; */
+    world2cam(ledProj, input, &oc_model);
+    a            = ignition::math::Pose3d(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
+    b            = ignition::math::Pose3d((pose.Pos()) - (ledPose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
+    distance     = b.Pos().Length();
+    cosAngle     = a.Pos().Dot(b.Pos()) / (distance);
+    ledIntensity = round(std::max(.0, cosAngle) * (coef[0] + (coef[1] / ((distance + coef[2]) * (distance + coef[2])))));
+
+    radius = sqrt(ledIntensity / M_PI);
+
+    /* std::cout << "C" << std::endl; */
+
+    /* count++; */
+    if (ledIntensity > 0) {
+      /* if (imgMtx.try_lock()) { */
+      /* imgMtx.lock(); */
+      /* if (shutterOpen) { */
+    /* std::cout << "D" << std::endl; */
+        cv::circle(cvimg.image, cv::Point2i(ledProj[1], ledProj[0]), radius, cv::Scalar(255), -1);
+    /* std::cout << "E" << std::endl; */
+      /* } */
+      /* imgMtx.unlock(); */
+    }
   }
-  void drawPose(std::pair<ignition::math::Pose3d,ignition::math::Pose3d> input_poses){
+//}
+
+/* drawPose_legacy //{ */
+  void drawPose_legacy(std::pair<ignition::math::Pose3d,ignition::math::Pose3d> input_poses){
     /* std::cout << "A" << std::endl; */
     ignition::math::Pose3d ledPose = input_poses.first;
     ignition::math::Pose3d pose = input_poses.second;
@@ -266,17 +382,8 @@ public:
       /* imgMtx.unlock(); */
     }
   }
-  /* crcMtx.unlock(); */
-  /*   ledState[1] = (bool)(i_state->data()); */
-  /*   /1* std::cout << i_state->data() << std::endl; *1/ */
+    //}
 
-  // Pointer to the sensor
-private:
-  sensors::SensorPtr sensor;
-
-  // Pointer to the update event connection
-private:
-  event::ConnectionPtr updateConnection;
 };
 
 // Register this plugin with the simulator

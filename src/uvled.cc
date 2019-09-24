@@ -4,6 +4,7 @@
 #include <gazebo/physics/physics.hh>
 /* #include <gazebo/rendering/rendering.hh> */
 #include <ros/ros.h>
+#include <std_msgs/Float64.h>
 #include <gazebo/sensors/sensors.hh>
 #include <ignition/math/Vector3.hh>
 #include <mutex>
@@ -14,20 +15,24 @@ namespace gazebo
 {
 class UvLed : public SensorPlugin {
 private:
+  ros::NodeHandle         nh;
   int                     n;
   double                  updatePeriod;
   float                   f;
   float                   T;
   float                   Th;
-  transport::PublisherPtr posePub;
+  /* transport::PublisherPtr posePub; */
+  ros::Publisher frequencyPub;
   /* transport::PublisherPtr statePub ; */
   gazebo::physics::WorldPtr world;
   physics::EntityPtr        parent;
   std::thread               pub_thread;
   sensors::SensorPtr        sensor;
-  ignition::math::Pose3d                pose;
-  msgs::Pose                poseMsg;
+  /* ignition::math::Pose3d                pose; */
+  /* msgs::Pose                poseMsg; */
+  std_msgs::Float64         freqnencyMsg;
   std::mutex                pubMutex;
+  std::string               link_name;
 
 public:
   void Load(sensors::SensorPtr _sensor, sdf::ElementPtr _sdf) {
@@ -35,13 +40,15 @@ public:
 
     std::cout << "Loading UV LED" << std::endl;
 
+    /* nh = ros::NodeHandle("/"); */
+
     // Store the pointer to the model
     this->sensor           = _sensor;
     world                  = physics::get_world("default");
     std::string parentName = sensor->ParentName();
     parent                 = world->EntityByName(parentName);
-    std::cout << _sdf->GetParent()->GetName() << std::endl;
-    std::cout << _sdf->GetParent()->GetElement("plugin")->Get< std::string >("name") << std::endl;
+    /* std::cout << _sdf->GetParent()->GetName() << std::endl; */
+    /* std::cout << _sdf->GetParent()->GetElement("plugin")->Get< std::string >("name") << std::endl; */
     /* std::cout << "LED parent name: " << _sdf->GetParent()->GetElement("visual")->GetElement("Pose")->GetValue() << std::endl; */
     /* std::cout << "LED plugin : " << _sdf->GetAttribute("name")->GetAsString() << std::endl; */
     /* std::cout << _sdf->GetParent()->GetElement("geometry")->GetElement("sphere")->GetElement("radius")->GetValue()->GetAsString() << std::endl; */
@@ -49,6 +56,14 @@ public:
     /* std::cout << _sdf->Get<std::string>("name") << std::endl; */
     /* std::cout << _sdf->GetElement("freq")->GetValue() << std::endl; */
 
+
+    if (_sdf->HasElement("link_name")) {
+      link_name = _sdf->GetElement("link_name")->Get< std::string >();
+      frequencyPub = nh.advertise<std_msgs::Float64>("/gazebo/ledProperties/"+link_name+"/frequency",1);
+    }
+    else{
+      std::cout << "Could not find the link name of the LED" << std::endl;
+    }
 
     if (_sdf->HasElement("frequency")) {
       f = _sdf->GetElement("frequency")->Get< double >();
@@ -68,7 +83,13 @@ public:
     T  = 1.0 / f;
     Th = T / 2.0;
 
-    updatePeriod = 1.0/216.0;
+    updatePeriod = 1.0;
+    if (_sdf->HasElement("updateRate")) {
+      updatePeriod = 1.0/_sdf->GetElement("updateRate")->Get< double >();
+      std::cout << "Update rate is " << 1.0/updatePeriod << "Hz" << std::endl;
+    }
+    else
+      std::cout << "Update rate defaulting to 1 Hz" << std::endl;
 
 
     transport::NodePtr node(new transport::Node());
@@ -81,7 +102,7 @@ public:
     /* std::sprintf(stateTopicName, "~/uvleds/state", id); */
 
 
-    posePub = node->Advertise< msgs::Pose >(poseTopicName);
+    /* posePub = node->Advertise< msgs::Pose >(poseTopicName); */
     /* statePub = node->Advertise<msgs::Int>(stateTopicName); */
     /* statePub->WaitForConnection(); */
     /* posePub->WaitForConnection(); */
@@ -101,38 +122,37 @@ public:
     std::cout << "Initializing UV LED" << n << std::endl;
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
     currTime               = ros::Time::now();
-    prevTime               = currTime;
-    /* pub_thread             = std::thread(&UvLed::PubThread, this); */
+    pub_thread             = std::thread(&UvLed::PubThread, this);
   }
   // Called by the world update start event
 public:
   void OnUpdate() {
-    currTime = ros::Time::now();
-    if ((currTime-prevTime).toSec()<(updatePeriod)){
-      /* std::cout << "HAPPENING" << std::endl; */
-      return;
-    }
+    /* currTime = ros::Time::now(); */
+    /* if ((currTime-prevTime).toSec()<(updatePeriod)){ */
+    /*   /1* std::cout << "HAPPENING" << std::endl; *1/ */
+    /*   return; */
+    /* } */
 
-    bool state = (fmod(ros::Time::now().toSec(), T) > Th);
-    if ((!state) && (f > 0.0)) {
-      return;
-    }
+    /* bool state = (fmod(ros::Time::now().toSec(), T) > Th); */
+    /* if ((!state) && (f > 0.0)) { */
+    /*   return; */
+    /* } */
 
-    pose = sensor->Pose() + parent->WorldPose();
-    msgs::Set(&poseMsg, pose);
-    posePub->Publish(poseMsg);
-    prevTime = currTime;
+    /* pose = sensor->Pose() + parent->WorldPose(); */
+    /* msgs::Set(&poseMsg, pose); */
+    /* posePub->Publish(poseMsg); */
   }
 
   // Pointer to the sensor
 private:
   void PubThread() {
-    ros::Rate r(500);  // 10 h
-    r.reset();
+    ros::Rate r(1);  // 10 h
+    /* r.reset(); */
     while (true) {
-      pubMutex.lock();
-      posePub->Publish(poseMsg);
-      pubMutex.unlock();
+      /* pubMutex.lock(); */
+      freqnencyMsg.data = f;
+      frequencyPub.publish(freqnencyMsg);
+      /* pubMutex.unlock(); */
       r.sleep();
     }
   }

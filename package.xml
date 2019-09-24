@@ -15,6 +15,7 @@
   <depend>image_transport</depend>
   <depend>gazebo</depend>
   <depend>roscpp</depend>
+  <depend>mrs_lib</depend>
 
   <export>
     <!-- Other tools can request additional information be placed here -->
