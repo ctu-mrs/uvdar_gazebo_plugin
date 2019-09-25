@@ -33,8 +33,6 @@ private:
   /* std::vector<std::pair<ignition::math::Pose3d,ignition::math::Pose3d>> buffer; */
   int                       id;
   float                     f;
-  float                     T;
-  float                     Th;
   uchar                     background;
   transport::SubscriberPtr  poseSub;
   transport::SubscriberPtr  stateSub;
@@ -68,8 +66,6 @@ private:
   std::vector<ros::Subscriber> ledInfoSubscribers;
 
   std::string filename;
-
-  ros::Duration exposure;
 
   std::unordered_map<std::string, std::shared_ptr<LedMgr> > _leds_by_name_;
 
@@ -113,11 +109,6 @@ public:
       std::cout << "LED framerate defaulting to 70Hz." << std::endl;
       f = 70.0;  // camera framerat
     }
-
-    T        = 1.0 / f;
-    Th       = T * 0.5;
-    exposure = ros::Duration(Th);
-
 
     transport::NodePtr node(new transport::Node());
     nh = ros::NodeHandle("~");

@@ -20,8 +20,6 @@ private:
   int                     n;
   double                  updatePeriod;
   float                   f;
-  float                   T;
-  float                   Th;
   /* transport::PublisherPtr posePub; */
   ros::Publisher ledPub;
   /* transport::PublisherPtr statePub ; */
@@ -41,22 +39,10 @@ public:
 
     std::cout << "Loading UV LED" << std::endl;
 
-    /* nh = ros::NodeHandle("/"); */
-
-    // Store the pointer to the model
     this->sensor           = _sensor;
     world                  = physics::get_world("default");
     std::string parentName = sensor->ParentName();
     parent                 = world->EntityByName(parentName);
-    /* std::cout << _sdf->GetParent()->GetName() << std::endl; */
-    /* std::cout << _sdf->GetParent()->GetElement("plugin")->Get< std::string >("name") << std::endl; */
-    /* std::cout << "LED parent name: " << _sdf->GetParent()->GetElement("visual")->GetElement("Pose")->GetValue() << std::endl; */
-    /* std::cout << "LED plugin : " << _sdf->GetAttribute("name")->GetAsString() << std::endl; */
-    /* std::cout << _sdf->GetParent()->GetElement("geometry")->GetElement("sphere")->GetElement("radius")->GetValue()->GetAsString() << std::endl; */
-    /* std::cout << _sdf->GetParent()->GetElement("meta")->GetAttribute("frequency")->GetAsString() << std::endl; */
-    /* std::cout << _sdf->Get<std::string>("name") << std::endl; */
-    /* std::cout << _sdf->GetElement("freq")->GetValue() << std::endl; */
-
 
     if (_sdf->HasElement("link_name")) {
       link_name = _sdf->GetElement("link_name")->Get< std::string >();
@@ -81,9 +67,6 @@ public:
       n = -1;  // camera framerate
     }
 
-    T  = 1.0 / f;
-    Th = T / 2.0;
-
     updatePeriod = 1.0;
     if (_sdf->HasElement("updateRate")) {
       updatePeriod = 1.0/_sdf->GetElement("updateRate")->Get< double >();
@@ -99,23 +82,6 @@ public:
 
     char poseTopicName[30];
     std::sprintf(poseTopicName, "~/uvleds/pose");
-    /* char stateTopicName[30]; */
-    /* std::sprintf(stateTopicName, "~/uvleds/state", id); */
-
-
-    /* posePub = node->Advertise< msgs::Pose >(poseTopicName); */
-    /* statePub = node->Advertise<msgs::Int>(stateTopicName); */
-    /* statePub->WaitForConnection(); */
-    /* posePub->WaitForConnection(); */
-
-
-    /* transport::fini(); */
-    // Listen to the update event. This event is broadcast every
-    /* shutdown(); */
-
-    /* while(true){ */
-    /*   common::Time::MSleep(1); */
-    /* } */
   }
 
 public:
@@ -128,20 +94,6 @@ public:
   // Called by the world update start event
 public:
   void OnUpdate() {
-    /* currTime = ros::Time::now(); */
-    /* if ((currTime-prevTime).toSec()<(updatePeriod)){ */
-    /*   /1* std::cout << "HAPPENING" << std::endl; *1/ */
-    /*   return; */
-    /* } */
-
-    /* bool state = (fmod(ros::Time::now().toSec(), T) > Th); */
-    /* if ((!state) && (f > 0.0)) { */
-    /*   return; */
-    /* } */
-
-    /* pose = sensor->Pose() + parent->WorldPose(); */
-    /* msgs::Set(&poseMsg, pose); */
-    /* posePub->Publish(poseMsg); */
   }
 
   // Pointer to the sensor
@@ -162,7 +114,6 @@ private:
   }
 
 private:
-  ros::Time            currTime, prevTime;
   event::ConnectionPtr updateConnection;
 };
 
