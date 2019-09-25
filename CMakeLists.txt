@@ -43,6 +43,7 @@ target_link_libraries(uvdar_led ${GAZEBO_LIBRARIES})
 add_library(uvdar_cam SHARED src/uvcam.cc include/undistortFunctions/ocam_functions.cpp include/ObjectMgr/ObjectMgr.cpp include/ObjectMgr/LedMgr.cpp)
 target_link_libraries(uvdar_cam ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES} ${OpenCV_LIBRARIES})
 add_dependencies(uvdar_cam ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(uvdar_led ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 # install(TARGETS uvdar_cam uvdar_led
 #         LIBRARY DESTINATION $ENV{HOME}/gazebo_local_plugins/)
