@@ -88,7 +88,6 @@ public:
   void Init() {
     std::cout << "Initializing UV LED" << n << std::endl;
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
-    currTime               = ros::Time::now();
     pub_thread             = std::thread(&UvLed::PubThread, this);
   }
   // Called by the world update start event
