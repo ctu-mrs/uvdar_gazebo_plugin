@@ -11,12 +11,25 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf
   mrs_lib
+  message_generation
 )
+
+add_message_files(DIRECTORY msg FILES
+  LedInfo.msg
+  )
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  )
+  
 catkin_package(
    INCLUDE_DIRS include
    LIBRARIES uvled uvcam
    catkin_depends cv_bridge image_transport roscpp sensor_msgs std_msgs message_runtime
 )
+
+
 find_package(gazebo REQUIRED)
 find_package(roscpp REQUIRED)
 find_package(OpenCV REQUIRED HINTS /usr/local/lib)
@@ -29,6 +42,7 @@ target_link_libraries(uvdar_led ${GAZEBO_LIBRARIES})
 
 add_library(uvdar_cam SHARED src/uvcam.cc include/undistortFunctions/ocam_functions.cpp include/ObjectMgr/ObjectMgr.cpp include/ObjectMgr/LedMgr.cpp)
 target_link_libraries(uvdar_cam ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES} ${OpenCV_LIBRARIES})
+add_dependencies(uvdar_cam ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 # install(TARGETS uvdar_cam uvdar_led
 #         LIBRARY DESTINATION $ENV{HOME}/gazebo_local_plugins/)

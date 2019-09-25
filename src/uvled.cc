@@ -9,6 +9,7 @@
 #include <ignition/math/Vector3.hh>
 #include <mutex>
 #include <thread>
+#include <uvdar_gazebo_plugin/LedInfo.h>
 
 
 namespace gazebo
@@ -22,7 +23,7 @@ private:
   float                   T;
   float                   Th;
   /* transport::PublisherPtr posePub; */
-  ros::Publisher frequencyPub;
+  ros::Publisher ledPub;
   /* transport::PublisherPtr statePub ; */
   gazebo::physics::WorldPtr world;
   physics::EntityPtr        parent;
@@ -30,7 +31,7 @@ private:
   sensors::SensorPtr        sensor;
   /* ignition::math::Pose3d                pose; */
   /* msgs::Pose                poseMsg; */
-  std_msgs::Float64         freqnencyMsg;
+  uvdar_gazebo_plugin::LedInfo         ledMsg;
   std::mutex                pubMutex;
   std::string               link_name;
 
@@ -59,7 +60,7 @@ public:
 
     if (_sdf->HasElement("link_name")) {
       link_name = _sdf->GetElement("link_name")->Get< std::string >();
-      frequencyPub = nh.advertise<std_msgs::Float64>("/gazebo/ledProperties/"+link_name+"/frequency",1);
+      ledPub = nh.advertise<uvdar_gazebo_plugin::LedInfo>("/gazebo/ledProperties/"+link_name,1, true);
     }
     else{
       std::cout << "Could not find the link name of the LED" << std::endl;
@@ -150,9 +151,12 @@ private:
     /* r.reset(); */
     while (true) {
       /* pubMutex.lock(); */
-      freqnencyMsg.data = f;
-      frequencyPub.publish(freqnencyMsg);
+      ledMsg.frequency.data = f;
+      ledMsg.isOff.data = false;
+      std::cout << "Sending message" << std::endl;
+      ledPub.publish(ledMsg);
       /* pubMutex.unlock(); */
+      return;//latched, so once is enough
       r.sleep();
     }
   }

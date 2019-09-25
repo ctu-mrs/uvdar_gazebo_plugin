@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <ObjectMgr/LedMgr.h>
 #include <std_msgs/Float64.h>
-
+#include <uvdar_gazebo_plugin/LedInfo.h>
 /* #define exprate 0.001 */
 
 #define index2d(X, Y) (oc_model.width * (Y) + (X))
@@ -65,6 +65,7 @@ private:
   ros::NodeHandle                  nh;
   image_transport::ImageTransport *it;
   image_transport::Publisher       pub;
+  std::vector<ros::Subscriber> ledInfoSubscribers;
 
   std::string filename;
 
@@ -191,7 +192,7 @@ private:
         }
       /* for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){ */
     for (auto led : _leds_by_name_){
-      if (led.second->get_pose(cur_pose)){
+      if (led.second->get_pose(cur_pose, ros::Time::now().toSec())){
         drawPose({cur_pose,pose});
       }
     }
@@ -258,7 +259,8 @@ void linkCallback(const gazebo_msgs::LinkStates link_states)
         boost::mutex::scoped_lock lock(mtx_leds);
         std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh, *pl, cur_name);
         _leds_by_name_.insert({cur_link_name, led});
-        nh.subscribe("/gazebo/ledProperties/"+cur_link_name+"/frequency", 1, &UvCam::frequencyCallback,this);
+        /* std::cout << "Subscribing to LED info of " << "/gazebo/ledProperties/"+cur_link_name << std::endl; */
+        ledInfoSubscribers.push_back(nh.subscribe("/gazebo/ledProperties/"+cur_link_name, 1, &UvCam::ledCallback,this));
       }
     }
 	}
@@ -266,12 +268,15 @@ void linkCallback(const gazebo_msgs::LinkStates link_states)
 }
 //}
 
-/* void measurementCallback(const geometry_msgs::PoseWithCovarianceStampedPtr& meas){ */
-void frequencyCallback(const ros::MessageEvent<std_msgs::Float64 const>& event){
+/* void ledCallback //{ */
+void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& event){
+  /* std::cout << "Getting message" << std::endl; */
     ros::M_string mhdr = event.getConnectionHeader();
     std::string topic = mhdr["topic"];
-    std::string link_name = topic.substr(std::string("/gazebo/ledProperties/").length(),topic.length()-std::string("/frequency").length());
-    std::cout << "link name is: " << link_name << std::endl;
+    std::string link_name = topic.substr(std::string("/gazebo/ledProperties/").length());
+    const uvdar_gazebo_plugin::LedInfoConstPtr& led_info = event.getMessage();
+    std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl;
+    _leds_by_name_.at(link_name)->update_frequency(led_info->frequency.data);
 }
 //}
 

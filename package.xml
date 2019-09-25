@@ -16,6 +16,7 @@
   <depend>gazebo</depend>
   <depend>roscpp</depend>
   <depend>mrs_lib</depend>
+  <depend>msg_generation</depend>
 
   <export>
     <!-- Other tools can request additional information be placed here -->
