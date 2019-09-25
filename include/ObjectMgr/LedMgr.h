@@ -5,7 +5,6 @@
 #include <ros/ros.h>
 #include <string>
 #include <memory>
-#include <mrs_lib/ParamLoader.h>
 #include <geometry_msgs/Point32.h>
 #include "ObjectMgr.h"
 #include "LedMgr.h"
@@ -15,7 +14,6 @@ class LedMgr : public ObjectMgr
   public:
     LedMgr(
         ros::NodeHandle& nh,
-        mrs_lib::ParamLoader& pl,
         const std::string& name);
     void update_link_pose(const std::string& link_name, const geometry_msgs::Pose& i_pose);
     void update_frequency(double i_frequency);

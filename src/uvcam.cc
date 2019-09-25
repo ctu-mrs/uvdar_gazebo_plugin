@@ -69,8 +69,6 @@ private:
 
   std::unordered_map<std::string, std::shared_ptr<LedMgr> > _leds_by_name_;
 
-  mrs_lib::ParamLoader *pl;
-
   sensors::SensorPtr sensor;
   // Pointer to the update event connection
   event::ConnectionPtr updateConnection;
@@ -112,7 +110,6 @@ public:
 
     transport::NodePtr node(new transport::Node());
     nh = ros::NodeHandle("~");
-    pl = new mrs_lib::ParamLoader(nh);
 
     node->Init();
 
@@ -248,7 +245,7 @@ void linkCallback(const gazebo_msgs::LinkStates link_states)
       }
       else{
         boost::mutex::scoped_lock lock(mtx_leds);
-        std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh, *pl, cur_name);
+        std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh, cur_name);
         _leds_by_name_.insert({cur_link_name, led});
         /* std::cout << "Subscribing to LED info of " << "/gazebo/ledProperties/"+cur_link_name << std::endl; */
         ledInfoSubscribers.push_back(nh.subscribe("/gazebo/ledProperties/"+cur_link_name, 1, &UvCam::ledCallback,this));

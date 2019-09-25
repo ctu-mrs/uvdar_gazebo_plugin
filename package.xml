@@ -15,7 +15,6 @@
   <depend>image_transport</depend>
   <depend>gazebo</depend>
   <depend>roscpp</depend>
-  <depend>mrs_lib</depend>
   <depend>msg_generation</depend>
 
   <export>

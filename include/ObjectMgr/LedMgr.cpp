@@ -3,7 +3,6 @@
 
 LedMgr::LedMgr(
     ros::NodeHandle& nh,
-    mrs_lib::ParamLoader& pl,
     const std::string& name
     )
   : ObjectMgr(nh, name, "led_link") {
