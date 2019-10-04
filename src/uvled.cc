@@ -88,7 +88,11 @@ public:
   void Init() {
     std::cout << "Initializing UV LED" << n << std::endl;
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
-    pub_thread             = std::thread(&UvLed::PubThread, this);
+      ledMsg.frequency.data = f;
+      ledMsg.isOff.data = false;
+      std::cout << "Sending message" << std::endl;
+      ledPub.publish(ledMsg);
+    /* pub_thread             = std::thread(&UvLed::PubThread, this); */
   }
   // Called by the world update start event
 public:

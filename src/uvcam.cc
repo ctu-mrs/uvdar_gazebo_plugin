@@ -1,6 +1,8 @@
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
 #include <ros/ros.h>
+#include <ros/callback_queue.h>
+#include <ros/subscribe_options.h>
 #include <undistortFunctions/ocam_functions.h>
 #include <functional>
 #include <gazebo/common/common.hh>
@@ -18,6 +20,7 @@
 #include <ObjectMgr/LedMgr.h>
 #include <std_msgs/Float64.h>
 #include <uvdar_gazebo_plugin/LedInfo.h>
+#include <sensor_msgs/PointCloud.h>
 /* #define exprate 0.001 */
 
 #define index2d(X, Y) (oc_model.width * (Y) + (X))
@@ -32,7 +35,7 @@ private:
   boost::mutex mtx_leds;
   /* std::vector<std::pair<ignition::math::Pose3d,ignition::math::Pose3d>> buffer; */
   int                       id;
-  float                     f;
+  double                    f,T;
   uchar                     background;
   transport::SubscriberPtr  poseSub;
   transport::SubscriberPtr  stateSub;
@@ -59,10 +62,9 @@ private:
   cv_bridge::CvImage               cvimg;
   sensor_msgs::ImagePtr            msg;
   double                           coef[3] = {1.3398, 31.4704, 0.0154};
-  std::thread                      draw_thread;
-  ros::NodeHandle                  nh;
-  image_transport::ImageTransport *it;
-  image_transport::Publisher       pub;
+  std::thread                      transfer_thread;
+  std::thread                      link_callback_thread;
+  ros::NodeHandle                  nh_;
   std::vector<ros::Subscriber> ledInfoSubscribers;
 
   std::string filename;
@@ -72,6 +74,12 @@ private:
   sensors::SensorPtr sensor;
   // Pointer to the update event connection
   event::ConnectionPtr updateConnection;
+
+  /* ros::Time last_link_received_; */
+
+  ros::CallbackQueue link_queue_;
+
+  ros::Publisher virtual_points_publisher;
 
   //}
 
@@ -108,46 +116,44 @@ public:
       f = 70.0;  // camera framerat
     }
 
-    transport::NodePtr node(new transport::Node());
-    nh = ros::NodeHandle("~");
+    T = 1.0/f;
 
-    node->Init();
+    /* transport::NodePtr node(new transport::Node()); */
+    nh_ = ros::NodeHandle("~");
+
 
 
     char poseTopicName[30];
     std::sprintf(poseTopicName, "~/uvleds/pose");
-    /* char stateTopicName[30]; */
-    /* std::sprintf(stateTopicName, "~/uvleds/state", id); */
 
 
-    /* poseSub = node->Subscribe(poseTopicName, &UvCam::poseCB, this, false); */
-    /* stateSub = node->Subscribe(stateTopicName, &UvCam::stateCB, this, false); */
-    /* statePub->WaitForConnection(); */
-    /* posePub->WaitForConnection(); */
+    // Create a named topic, and subscribe to it.
+    ros::SubscribeOptions so =
+      ros::SubscribeOptions::create<gazebo_msgs::LinkStates>(
+          "/gazebo/link_states",
+          1,
+          boost::bind(&UvCam::linkCallback, this, _1),
+          ros::VoidPtr(), &link_queue_);
 
-    linkSub = nh.subscribe("/gazebo/link_states", 1, &UvCam::linkCallback, this);
+    linkSub = nh_.subscribe(so);
+    /* linkSub = nh.subscribe("/gazebo/link_states", 1, &UvCam::linkCallback, this); */
 
 
-    /* transport::fini(); */
-    // Listen to the update event. This event is broadcast every
-    /* shutdown(); */
-    /* while (true){ */
+    /* node->Init(); */
 
-    /* } */
     char *dummy = NULL;
     int   zero  = 0;
     ros::init(zero, &dummy, "uvdar_bluefox_emulator");
-    it = new image_transport::ImageTransport(nh);
     std::string publish_topic;
     if (_sdf->HasElement("camera_publish_topic")) {
       publish_topic = _sdf->GetElement("camera_publish_topic")->Get<std::string>();
     } else {
       publish_topic = parentName.substr(0, parentName.find(":")) + "/uvdar_bluefox/image_raw";
     }
-    std::cout << "Publishing UV Camera to topic: \"" << publish_topic << "\"" << std::endl;
-    pub = it->advertise(publish_topic, 1);
+    std::cout << "Publishing UV Camera data to topic: /gazebo" << publish_topic << "\"" << std::endl;
 
-    background = std::rand() % 100;
+    virtual_points_publisher = nh_.advertise<sensor_msgs::PointCloud>("/gazebo"+publish_topic, 1);
+
   }
   //}
 
@@ -157,36 +163,74 @@ public:
     /* ledState[i] = false; */
 
     get_ocam_model(&oc_model, (char*)(filename.c_str()));
-    cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0)));
+    /* cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0))); */
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
 
-    draw_thread            = std::thread(&UvCam::DrawThread, this);
+    transfer_thread            = std::thread(&UvCam::TransferThread, this);
+    link_callback_thread   = std::thread(&UvCam::LinkQueueThread, this);
   }
   //}
 
 private:
-  /* DrawThread //{ */
-  void DrawThread() {
+  /* TransferThread //{ */
+  void TransferThread() {
+    /* clock_t begin, end; */
+    /* clock_t begin_p, end_p; */
+    /* double  elapsedTime; */
+
     ros::Rate rt(f);
     geometry_msgs::Pose cur_pose;
+    cv::Point3d output;
+    geometry_msgs::Point32 pt;
+    sensor_msgs::PointCloud msg_ptcl;
+    std::pair<std::string, std::shared_ptr<LedMgr> > led;
     while (ros::ok()){
-      boost::mutex::scoped_lock lock(mtx_leds);
-        //CHECK: Optimize the following
-        for (int j = 0; j < cvimg.image.rows; j++) {
-          for (int i = 0; i < cvimg.image.cols; i++) {
-            if (cvimg.image.data[index2d(i, j)] != background)
-              (cvimg.image.data[index2d(i, j)] = background);
+      /* begin         = std::clock(); */
+      //CHECK: Optimize the following
+      /* for (int j = 0; j < cvimg.image.rows; j++) { */
+      /*   for (int i = 0; i < cvimg.image.cols; i++) { */
+      /*     if (cvimg.image.data[index2d(i, j)] != background) */
+      /*       (cvimg.image.data[index2d(i, j)] = background); */
+      /*   } */
+      /* } */
+      /* end_p         = std::clock(); */
+      /* elapsedTime = double(end_p - begin) / CLOCKS_PER_SEC; */
+      /* std::cout << "UV CAM: Wiping took : " << elapsedTime << " s" << std::endl; */
+      /* for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){ */
+      msg_ptcl.header.stamp = ros::Time::now();
+      msg_ptcl.points.clear();
+      double sec_time = ros::Time::now().toSec();
+      for (auto& ledr : _leds_by_name_){
+        {
+          boost::mutex::scoped_lock lock(mtx_leds);
+          led = ledr;
+        }
+        if (led.second->get_pose(cur_pose, sec_time)){
+          if (drawPose_virtual({cur_pose,pose}, output)){
+            pt.x = output.x;
+            pt.y = output.y;
+            pt.z = output.z;
+            msg_ptcl.points.push_back(pt);
           }
         }
-      /* for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){ */
-    for (auto led : _leds_by_name_){
-      if (led.second->get_pose(cur_pose, ros::Time::now().toSec())){
-        drawPose({cur_pose,pose});
       }
+      virtual_points_publisher.publish(msg_ptcl);
+      /* end         = std::clock(); */
+      /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
+      /* std::cout << "UV CAM: Drawing took : " << elapsedTime << " s" << std::endl; */
+      rt.sleep();
     }
-      msg = cvimg.toImageMsg();
-      msg->header.stamp = ros::Time::now();
-      pub.publish(msg);
+  }
+  //}
+  
+  /* LinkQueueThread //{ */
+  void LinkQueueThread() {
+
+    static const double timeout = T;
+    ros::Rate rt(f);
+    while (nh_.ok())
+    {
+      link_queue_.callAvailable(ros::WallDuration(timeout));
       rt.sleep();
     }
   }
@@ -195,6 +239,7 @@ private:
 public:
 /* OnUpdate //{ */
   void OnUpdate() {
+    /* ros::spinOnce(); */
     /* std::cout << "sending" << std::endl; */
     // Apply a small linear velocity to the model.
     pose = sensor->Pose() + parent->WorldPose();
@@ -204,7 +249,7 @@ public:
 
     /* if ((!shutterOpen) && (shutterOpenPrev)) { */
       /* /1* std::cout << "Joining draw thread..." << std::endl; *1/ */
-      /* /1* draw_thread.join(); *1/ */
+      /* /1* transfer_thread.join(); *1/ */
       /* } */
       /* ros::Rate r(f);  // 10 h */
       /* r.reset(); */
@@ -222,36 +267,46 @@ public:
 public:
 
 /* linkCallback //{ */
-void linkCallback(const gazebo_msgs::LinkStates link_states)
+void linkCallback(const gazebo_msgs::LinkStatesConstPtr &link_states)
 {
-	const std::vector<std::string>& names = link_states.name;
-	const std::vector<geometry_msgs::Pose>& poses = link_states.pose;
-  
-	for (size_t it = 0; it < names.size(); ++it) 
-  {
-    const std::string& cur_name = names.at(it);
-    const size_t prependix_pos = cur_name.find_first_of("::");
-		const std::string cur_model_name = cur_name.substr(0, prependix_pos);
-		const std::string cur_link_name = cur_name.substr(prependix_pos+2);
+      /* std::cout << " HERE " << std::endl; */
+
+  /* ros::Time temp_time = ros::Time::now(); */
+  /* if ((temp_time-last_link_received_).toSec()>=T){ */
+  if (true){
+    /* last_link_received_ = temp_time; */
+
+    const std::vector<std::string>& names = link_states->name;
+    const std::vector<geometry_msgs::Pose>& poses = link_states->pose;
+
+    for (size_t it = 0; it < names.size(); ++it) 
+    {
+      const std::string& cur_name = names.at(it);
+      if (cur_name.find("_uvled_") == std::string::npos){
+        continue;
+      }
+
+      const size_t prependix_pos = cur_name.find_first_of("::");
+      const std::string cur_model_name = cur_name.substr(0, prependix_pos);
+      const std::string cur_link_name = cur_name.substr(prependix_pos+2);
 
 
-    /* std::cout << "pose of " << cur_name << ": " << std::endl; */
-    /* std::cout << poses.at(it) << std::endl; */
+      /* std::cout << "pose of " << cur_name << ": " << std::endl; */
+      /* std::cout << poses.at(it) << std::endl; */
 
-    if (cur_link_name.find("_uvled_") != std::string::npos){
       if (_leds_by_name_.count(cur_link_name) != 0){
         boost::mutex::scoped_lock lock(mtx_leds);
         _leds_by_name_.at(cur_link_name)->update_link_pose(cur_link_name, poses.at(it));
       }
       else{
         boost::mutex::scoped_lock lock(mtx_leds);
-        std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh, cur_name);
+        std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh_, cur_name);
         _leds_by_name_.insert({cur_link_name, led});
         /* std::cout << "Subscribing to LED info of " << "/gazebo/ledProperties/"+cur_link_name << std::endl; */
-        ledInfoSubscribers.push_back(nh.subscribe("/gazebo/ledProperties/"+cur_link_name, 1, &UvCam::ledCallback,this));
+        ledInfoSubscribers.push_back(nh_.subscribe("/gazebo/ledProperties/"+cur_link_name, 1, &UvCam::ledCallback,this));
       }
     }
-	}
+  }
 
 }
 //}
@@ -287,6 +342,56 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
   /*   /1* std::cout << "CB: Unlocking mutex..." << std::endl; *1/ */
   /*   mtx_buffer.unlock(); */
   /* } */
+//}
+
+/* drawPose_virtual //{ */
+  bool drawPose_virtual(std::pair<geometry_msgs::Pose,ignition::math::Pose3d> input_poses, cv::Point3d &output){
+    /* return false; */
+    /* std::cout << "A" << std::endl; */
+    ignition::math::Pose3d ledPose(
+        input_poses.first.position.x,
+        input_poses.first.position.y,
+        input_poses.first.position.z,
+        input_poses.first.orientation.w,
+        input_poses.first.orientation.x,
+        input_poses.first.orientation.y,
+        input_poses.first.orientation.z
+        );
+
+    ignition::math::Pose3d pose = input_poses.second;
+    invOrient = ledPose.Rot();
+    invOrient.Invert();
+    diffPose = (ledPose - pose);
+    input[0] = -(diffPose.Pos().Z());
+    input[1] = -(diffPose.Pos().Y());
+    input[2] = -(diffPose.Pos().X());
+
+    /* std::cout << "input: " << std::endl; */
+    /* std::cout << input_poses.first << std::endl; */
+    /* std::cout << "converted: " << std::endl; */
+    /* std::cout << ledPose << std::endl; */
+    world2cam(ledProj, input, &oc_model);
+    a            = ignition::math::Pose3d(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
+    b            = ignition::math::Pose3d((pose.Pos()) - (ledPose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
+    distance     = b.Pos().Length();
+    cosAngle     = a.Pos().Dot(b.Pos()) / (distance);
+    ledIntensity = round(std::max(.0, cosAngle) * (coef[0] + (coef[1] / ((distance + coef[2]) * (distance + coef[2])))));
+
+    radius = sqrt(ledIntensity / M_PI);
+
+    /* std::cout << "C" << std::endl; */
+
+    /* count++; */
+    output.x = ledProj[1];
+    output.y = ledProj[0];
+    output.z = radius;
+    if (ledIntensity > 0.1) {
+      return true;
+    }
+    else
+      return false;
+        /* cv::circle(cvimg.image, cv::Point2i(ledProj[1], ledProj[0]), radius, cv::Scalar(255), -1); */
+  }
 //}
 
 /* drawPose //{ */
