@@ -9,6 +9,10 @@
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
 #include <gazebo/sensors/sensors.hh>
+#include "gazebo/rendering/Conversions.hh"
+#include "gazebo/rendering/Visual.hh"
+#include "gazebo/rendering/ogre_gazebo.h"
+#include "gazebo/rendering/rendering.hh"
 #include <ignition/math/Vector3.hh>
 #include <ignition/math/Pose3.hh>
 #include <thread>
@@ -50,6 +54,7 @@ private:
 
   ignition::math::Pose3d a;
   ignition::math::Pose3d b;
+  ignition::math::Pose3d c;
   double     distance;
   double     cosAngle;
 
@@ -81,6 +86,9 @@ private:
 
   ros::Publisher virtual_points_publisher;
 
+  rendering::ScenePtr world_scene_;
+  rendering::VisualPtr visual_current_;
+
   //}
 
 public:
@@ -88,7 +96,8 @@ public:
 /* Load //{ */
   void Load(sensors::SensorPtr _parent, sdf::ElementPtr _sdf) {
 
-    
+    gazebo::rendering::Events::createScene("default");
+
 
     std::cout << "Initializing UV camera" << std::endl;
 
@@ -244,6 +253,10 @@ public:
     // Apply a small linear velocity to the model.
     pose = sensor->Pose() + parent->WorldPose();
 
+    world_scene_ = rendering::get_scene();    
+    if (!world_scene_ || !(world_scene_->Initialized()))
+      return;
+
     /* shutterOpenPrev = shutterOpen; */
     /* shutterOpen = (fmod(ros::Time::now().toSec(), T) > Th); */
 
@@ -346,6 +359,9 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
 
 /* drawPose_virtual //{ */
   bool drawPose_virtual(std::pair<geometry_msgs::Pose,ignition::math::Pose3d> input_poses, cv::Point3d &output){
+
+    if (!(world_scene_->Initialized()))
+        return false;
     /* return false; */
     /* std::cout << "A" << std::endl; */
     ignition::math::Pose3d ledPose(
@@ -373,6 +389,15 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     world2cam(ledProj, input, &oc_model);
     a            = ignition::math::Pose3d(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
     b            = ignition::math::Pose3d((pose.Pos()) - (ledPose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
+    c            = ignition::math::Pose3d((ledPose.Pos()) - (pose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
+
+    /* std::cout << "Here A" << std::endl; */
+    visual_current_ = world_scene_->GetVisual("unit_cylinder");
+    if (visual_current_ != NULL){
+      /* std::cout << "(A) Mesh name: " <<  visual_current_->GetMeshName() << std::endl; */
+      if (getObstacle( pose, c, visual_current_)) return false;
+    }
+
     distance     = b.Pos().Length();
     cosAngle     = a.Pos().Dot(b.Pos()) / (distance);
     ledIntensity = round(std::max(.0, cosAngle) * (coef[0] + (coef[1] / ((distance + coef[2]) * (distance + coef[2])))));
@@ -481,6 +506,121 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     }
   }
     //}
+    
+/* getObstacle //{ */
+bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
+    const rendering::VisualPtr &_visual) const
+{
+
+  std::cout << "Cam. pose: " << camera.Pos() << "; Diff. vector: " << diff << std::endl;
+
+  // create the ray to test
+  Ogre::Ray ray =
+    Ogre::Ray( Ogre::Vector3(camera.Pos().X(),camera.Pos().Y(),camera.Pos().Z()), Ogre::Vector3(diff.Pos().X(),diff.Pos().Y(),diff.Pos().Z())) ;
+
+  std::vector<rendering::VisualPtr> visuals;
+  meshVisuals(_visual, visuals);
+
+  Ogre::Real closestDistance = -1.0f;
+  Ogre::Vector3 closestResult;
+  /* bool newClosestFound = false; */
+  std::vector<Ogre::Vector3> vertices;
+
+  for (unsigned int i = 0; i < visuals.size(); ++i)
+  {
+    const common::Mesh *mesh =
+        common::MeshManager::Instance()->GetMesh(visuals[i]->GetMeshName());
+
+    if (!mesh)
+      continue;
+
+    visuals[i]->GetSceneNode()->_update(true, true);
+    Ogre::Matrix4 transform = visuals[i]->GetSceneNode()->_getFullTransform();
+    /* std::cout << "Transform: " << transform << std::endl; */
+    // test for hitting individual triangles on the mesh
+    for (unsigned int j = 0; j < mesh->GetSubMeshCount(); ++j)
+    {
+      const common::SubMesh *submesh = mesh->GetSubMesh(j);
+      if (submesh->GetVertexCount() < 3u)
+        continue;
+      unsigned int indexCount = submesh->GetIndexCount();
+      for (unsigned int k = 0; k < indexCount; k += 3)
+      {
+        if (indexCount <= k+2)
+          continue;
+
+        ignition::math::Vector3d vertexA =
+          submesh->Vertex(submesh->GetIndex(k));
+        ignition::math::Vector3d vertexB =
+          submesh->Vertex(submesh->GetIndex(k+1));
+        ignition::math::Vector3d vertexC =
+          submesh->Vertex(submesh->GetIndex(k+2));
+
+        Ogre::Vector3 worldVertexA = transform * rendering::Conversions::Convert(vertexA);
+        Ogre::Vector3 worldVertexB = transform * rendering::Conversions::Convert(vertexB);
+        Ogre::Vector3 worldVertexC = transform * rendering::Conversions::Convert(vertexC);
+
+        // check for a hit against this triangle
+        std::pair<bool, Ogre::Real> hit = Ogre::Math::intersects(ray,
+            worldVertexA, worldVertexB, worldVertexC,
+           (worldVertexB - worldVertexA).crossProduct(
+           worldVertexC - worldVertexA));
+
+        // if it was a hit check if its the closest
+        if (hit.first &&
+            (closestDistance < 0.0f || hit.second < closestDistance))
+        {
+          // this is the closest so far, save it off
+          if (hit.second < 1.0){ //since the vector is expresed as total difference between the cam. and the led distance, 1.0 means the hit occurs exactly at the led position.
+            /* std::cout << "FOUND OBSTACLE! Distance: "<< hit.second << std::endl; */
+            return true;
+          }
+
+          closestDistance = hit.second;
+          vertices.clear();
+          vertices.push_back(worldVertexA);
+          vertices.push_back(worldVertexB);
+          vertices.push_back(worldVertexC);
+        }
+      }
+    }
+  }
+
+  // if we found a new closest raycast for this object, update the
+  // closestResult before moving on to the next object.
+  /* if (newClosestFound) */
+  /*   closestResult = ray.getPoint(closestDistance); */
+
+  // return the result
+  /* if (closestDistance >= 0.0f && vertices.size() == 3u) */
+  /* { */
+  /*   // raycast success */
+  /*   _intersect = Conversions::ConvertIgn(closestResult); */
+  /*   _triangle.Set( */
+  /*       Conversions::ConvertIgn(vertices[0]), */
+  /*       Conversions::ConvertIgn(vertices[1]), */
+  /*       Conversions::ConvertIgn(vertices[2])); */
+  /*   return true; */
+  /* } */
+  // raycast failed
+  return false;
+}
+
+
+//}
+/* meshVisuals //{ */
+void meshVisuals(const rendering::VisualPtr _visual,
+    std::vector<rendering::VisualPtr> &_visuals) const {
+  if (!_visual->GetMeshName().empty() &&
+      (_visual->GetVisibilityFlags() & GZ_VISIBILITY_SELECTABLE)){
+    std::cout << "Mesh name: " <<  _visual->GetMeshName() << std::endl;
+    _visuals.push_back(_visual);
+  }
+
+  for (unsigned int i = 0; i < _visual->GetChildCount(); ++i)
+    meshVisuals(_visual->GetChild(i), _visuals);
+}
+//}
 
 };
 
