@@ -402,7 +402,7 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     /* visual_current_ = world_scene_->GetVisual("tree_*"); */
     if (visual_current_ != NULL){
       /* std::cout << "(A) Mesh name: " <<  visual_current_->GetMeshName() << std::endl; */
-      /* if (getObstacle( pose, c, visuals_serialized)) return false; */
+      if (getObstacle( pose, c, visuals_serialized)) return false;
     }
 
     distance     = b.Pos().Length();
