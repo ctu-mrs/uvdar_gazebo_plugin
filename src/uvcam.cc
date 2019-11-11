@@ -392,7 +392,8 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     c            = ignition::math::Pose3d((ledPose.Pos()) - (pose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
 
     /* std::cout << "Here A" << std::endl; */
-    visual_current_ = world_scene_->GetVisual("trunk");
+    /* visual_current_ = world_scene_->GetVisual("tree_*"); */
+    visual_current_ = world_scene_->WorldVisual();
     if (visual_current_ != NULL){
       /* std::cout << "(A) Mesh name: " <<  visual_current_->GetMeshName() << std::endl; */
       if (getObstacle( pose, c, visual_current_)) return false;
@@ -512,11 +513,12 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
     const rendering::VisualPtr &_visual) const
 {
 
-  std::cout << "Cam. pose: " << camera.Pos() << "; Diff. vector: " << diff << std::endl;
+  /* std::cout << "Cam. pose: " << camera.Pos() << "; Diff. vector: " << diff << std::endl; */
 
   // create the ray to test
+  Ogre::Vector3 camVec(camera.Pos().X(),camera.Pos().Y(),camera.Pos().Z());
   Ogre::Ray ray =
-    Ogre::Ray( Ogre::Vector3(camera.Pos().X(),camera.Pos().Y(),camera.Pos().Z()), Ogre::Vector3(diff.Pos().X(),diff.Pos().Y(),diff.Pos().Z())) ;
+    Ogre::Ray( camVec, Ogre::Vector3(diff.Pos().X(),diff.Pos().Y(),diff.Pos().Z())) ;
 
   std::vector<rendering::VisualPtr> visuals;
   meshVisuals(_visual, visuals);
@@ -528,18 +530,25 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
 
   for (unsigned int i = 0; i < visuals.size(); ++i)
   {
+    if ((camVec - visuals[i]->GetSceneNode()->_getDerivedPosition()).length() >20)
+      continue;
+    /* std::cout << "Visual name: " <<  visuals[i]->Name() << std::endl; */
     const common::Mesh *mesh =
         common::MeshManager::Instance()->GetMesh(visuals[i]->GetMeshName());
 
     if (!mesh)
       continue;
 
+
     visuals[i]->GetSceneNode()->_update(true, true);
+    /* std::cout << "Here A" << std::endl; */
     Ogre::Matrix4 transform = visuals[i]->GetSceneNode()->_getFullTransform();
     /* std::cout << "Transform: " << transform << std::endl; */
     // test for hitting individual triangles on the mesh
+    /* std::cout << "Here B" << std::endl; */
     for (unsigned int j = 0; j < mesh->GetSubMeshCount(); ++j)
     {
+    /* std::cout << "Here C" << std::endl; */
       const common::SubMesh *submesh = mesh->GetSubMesh(j);
       if (submesh->GetVertexCount() < 3u)
         continue;
@@ -556,16 +565,19 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
         ignition::math::Vector3d vertexC =
           submesh->Vertex(submesh->GetIndex(k+2));
 
+    /* std::cout << "Here C" << std::endl; */
         Ogre::Vector3 worldVertexA = transform * rendering::Conversions::Convert(vertexA);
         Ogre::Vector3 worldVertexB = transform * rendering::Conversions::Convert(vertexB);
         Ogre::Vector3 worldVertexC = transform * rendering::Conversions::Convert(vertexC);
 
         // check for a hit against this triangle
+    /* std::cout << "Here D" << std::endl; */
         std::pair<bool, Ogre::Real> hit = Ogre::Math::intersects(ray,
             worldVertexA, worldVertexB, worldVertexC,
            (worldVertexB - worldVertexA).crossProduct(
            worldVertexC - worldVertexA));
 
+    /* std::cout << "Here E" << std::endl; */
         // if it was a hit check if its the closest
         if (hit.first &&
             (closestDistance < 0.0f || hit.second < closestDistance))
@@ -613,8 +625,10 @@ void meshVisuals(const rendering::VisualPtr _visual,
     std::vector<rendering::VisualPtr> &_visuals) const {
   if (!_visual->GetMeshName().empty() &&
       (_visual->GetVisibilityFlags() & GZ_VISIBILITY_SELECTABLE)){
-    std::cout << "Mesh name: " <<  _visual->GetMeshName() << std::endl;
-    _visuals.push_back(_visual);
+    /* std::cout << "Mesh name: " <<  _visual->GetMeshName() << std::endl; */
+    std::size_t found = _visual->Name().find("tree");
+    if (found!=std::string::npos)
+      _visuals.push_back(_visual);
   }
 
   for (unsigned int i = 0; i < _visual->GetChildCount(); ++i)
