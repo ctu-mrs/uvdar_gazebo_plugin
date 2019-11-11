@@ -88,6 +88,7 @@ private:
 
   rendering::ScenePtr world_scene_;
   rendering::VisualPtr visual_current_;
+  std::vector<rendering::VisualPtr> visuals_serialized;
 
   //}
 
@@ -257,6 +258,12 @@ public:
     if (!world_scene_ || !(world_scene_->Initialized()))
       return;
 
+    if (!visual_current_){
+      std::cout << "Initializing world" << std::endl;
+      visual_current_ = world_scene_->WorldVisual();
+      meshVisuals(visual_current_, visuals_serialized);
+    }
+
     /* shutterOpenPrev = shutterOpen; */
     /* shutterOpen = (fmod(ros::Time::now().toSec(), T) > Th); */
 
@@ -393,10 +400,9 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
 
     /* std::cout << "Here A" << std::endl; */
     /* visual_current_ = world_scene_->GetVisual("tree_*"); */
-    visual_current_ = world_scene_->WorldVisual();
     if (visual_current_ != NULL){
       /* std::cout << "(A) Mesh name: " <<  visual_current_->GetMeshName() << std::endl; */
-      if (getObstacle( pose, c, visual_current_)) return false;
+      /* if (getObstacle( pose, c, visuals_serialized)) return false; */
     }
 
     distance     = b.Pos().Length();
@@ -510,7 +516,7 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     
 /* getObstacle //{ */
 bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
-    const rendering::VisualPtr &_visual) const
+    const std::vector<rendering::VisualPtr> &visuals) const
 {
 
   /* std::cout << "Cam. pose: " << camera.Pos() << "; Diff. vector: " << diff << std::endl; */
@@ -520,8 +526,7 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
   Ogre::Ray ray =
     Ogre::Ray( camVec, Ogre::Vector3(diff.Pos().X(),diff.Pos().Y(),diff.Pos().Z())) ;
 
-  std::vector<rendering::VisualPtr> visuals;
-  meshVisuals(_visual, visuals);
+  /* std::vector<rendering::VisualPtr> visuals; */
 
   Ogre::Real closestDistance = -1.0f;
   Ogre::Vector3 closestResult;
@@ -530,7 +535,7 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
 
   for (unsigned int i = 0; i < visuals.size(); ++i)
   {
-    if ((camVec - visuals[i]->GetSceneNode()->_getDerivedPosition()).length() >20)
+    if ((camVec - visuals[i]->GetSceneNode()->_getDerivedPosition()).length() >10)
       continue;
     /* std::cout << "Visual name: " <<  visuals[i]->Name() << std::endl; */
     const common::Mesh *mesh =
@@ -540,16 +545,17 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
       continue;
 
 
-    visuals[i]->GetSceneNode()->_update(true, true);
+    /* visuals[i]->GetSceneNode()->_update(false, false); */
     /* std::cout << "Here A" << std::endl; */
     Ogre::Matrix4 transform = visuals[i]->GetSceneNode()->_getFullTransform();
     /* std::cout << "Transform: " << transform << std::endl; */
     // test for hitting individual triangles on the mesh
-    /* std::cout << "Here B" << std::endl; */
+    /* std::cout << "Object " << visuals[i]->Name() << " - Submesh count: " << mesh->GetSubMeshCount() << std::endl; */
     for (unsigned int j = 0; j < mesh->GetSubMeshCount(); ++j)
     {
     /* std::cout << "Here C" << std::endl; */
       const common::SubMesh *submesh = mesh->GetSubMesh(j);
+    /* std::cout << "Submesh " << j << " - Index count: " << submesh->GetIndexCount() << std::endl; */
       if (submesh->GetVertexCount() < 3u)
         continue;
       unsigned int indexCount = submesh->GetIndexCount();
@@ -623,11 +629,11 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
 /* meshVisuals //{ */
 void meshVisuals(const rendering::VisualPtr _visual,
     std::vector<rendering::VisualPtr> &_visuals) const {
-  if (!_visual->GetMeshName().empty() &&
-      (_visual->GetVisibilityFlags() & GZ_VISIBILITY_SELECTABLE)){
-    /* std::cout << "Mesh name: " <<  _visual->GetMeshName() << std::endl; */
-    std::size_t found = _visual->Name().find("tree");
-    if (found!=std::string::npos)
+  std::size_t found = _visual->Name().find("trunk");
+  if (found!=std::string::npos)
+    if (!_visual->GetMeshName().empty() &&
+        (_visual->GetVisibilityFlags() & GZ_VISIBILITY_SELECTABLE)){
+      /* std::cout << "Mesh name: " <<  _visual->GetMeshName() << std::endl; */
       _visuals.push_back(_visual);
   }
 
