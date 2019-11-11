@@ -392,7 +392,7 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     c            = ignition::math::Pose3d((ledPose.Pos()) - (pose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
 
     /* std::cout << "Here A" << std::endl; */
-    visual_current_ = world_scene_->GetVisual("unit_cylinder");
+    visual_current_ = world_scene_->GetVisual("trunk");
     if (visual_current_ != NULL){
       /* std::cout << "(A) Mesh name: " <<  visual_current_->GetMeshName() << std::endl; */
       if (getObstacle( pose, c, visual_current_)) return false;
