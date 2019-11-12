@@ -90,12 +90,15 @@ private:
   rendering::VisualPtr visual_current_;
   std::vector<rendering::VisualPtr> visuals_serialized;
 
+  bool occlusion_initialized_;
   //}
 
 public:
 
 /* Load //{ */
   void Load(sensors::SensorPtr _parent, sdf::ElementPtr _sdf) {
+
+    occlusion_initialized_ = false;
 
     gazebo::rendering::Events::createScene("default");
 
@@ -254,14 +257,17 @@ public:
     // Apply a small linear velocity to the model.
     pose = sensor->Pose() + parent->WorldPose();
 
-    world_scene_ = rendering::get_scene();    
-    if (!world_scene_ || !(world_scene_->Initialized()))
-      return;
-
-    if (!visual_current_){
+    
+    if (!occlusion_initialized_){
       std::cout << "Initializing world" << std::endl;
+        world_scene_ = rendering::get_scene();    
+      if (!world_scene_ || !(world_scene_->Initialized()))
+        return;
+
       visual_current_ = world_scene_->WorldVisual();
       meshVisuals(visual_current_, visuals_serialized);
+
+      occlusion_initialized_ = true;
     }
 
     /* shutterOpenPrev = shutterOpen; */
@@ -367,8 +373,8 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
 /* drawPose_virtual //{ */
   bool drawPose_virtual(std::pair<geometry_msgs::Pose,ignition::math::Pose3d> input_poses, cv::Point3d &output){
 
-    if (!(world_scene_->Initialized()))
-        return false;
+    if (!occlusion_initialized_)
+      return false;
     /* return false; */
     /* std::cout << "A" << std::endl; */
     ignition::math::Pose3d ledPose(
