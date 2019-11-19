@@ -36,7 +36,7 @@ class UvCam : public SensorPlugin {
 private:
   /* variables //{ */
   /* std::mutex mtx_buffer; */
-  boost::mutex mtx_leds;
+  boost::mutex mtx_leds, mtx_occlusion;
   /* std::vector<std::pair<ignition::math::Pose3d,ignition::math::Pose3d>> buffer; */
   int                       id;
   double                    f,T;
@@ -260,7 +260,11 @@ public:
     
     if (!occlusion_initialized_){
       std::cout << "Initializing world" << std::endl;
-        world_scene_ = rendering::get_scene();    
+      std::cout << "renderPathType: " << rendering::RenderEngine::Instance()->GetRenderPathType() << std::endl;
+      std::cout << "Scene: " << rendering::RenderEngine::Instance()->GetScene(0) << std::endl;
+      
+
+      world_scene_ = rendering::get_scene();    
       if (!world_scene_ || !(world_scene_->Initialized()))
         return;
 
@@ -269,6 +273,9 @@ public:
 
       occlusion_initialized_ = true;
     }
+    /* else{ */
+    /*   boost::mutex::scoped_lock lock(mtx_occlusion); */
+    /* } */
 
     /* shutterOpenPrev = shutterOpen; */
     /* shutterOpen = (fmod(ros::Time::now().toSec(), T) > Th); */
@@ -539,8 +546,10 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
   /* bool newClosestFound = false; */
   std::vector<Ogre::Vector3> vertices;
 
+    /* visual_current_->GetSceneNode()->_update(true, false); */
   for (unsigned int i = 0; i < visuals.size(); ++i)
   {
+    /* visuals[i]->GetSceneNode()->_update(false, true); */
     if ((camVec - visuals[i]->GetSceneNode()->_getDerivedPosition()).length() >10)
       continue;
     /* std::cout << "Visual name: " <<  visuals[i]->Name() << std::endl; */
@@ -551,7 +560,6 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
       continue;
 
 
-    /* visuals[i]->GetSceneNode()->_update(false, false); */
     /* std::cout << "Here A" << std::endl; */
     Ogre::Matrix4 transform = visuals[i]->GetSceneNode()->_getFullTransform();
     /* std::cout << "Transform: " << transform << std::endl; */
