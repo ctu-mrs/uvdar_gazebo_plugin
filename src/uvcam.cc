@@ -5,6 +5,7 @@
 #include <ros/subscribe_options.h>
 #include <undistortFunctions/ocam_functions.h>
 #include <functional>
+#include <gazebo/plugins/CameraPlugin.hh>
 #include <gazebo/common/common.hh>
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
@@ -46,6 +47,8 @@ private:
   ros::Subscriber           linkSub;
   ignition::math::Pose3d                pose;
   gazebo::physics::WorldPtr world;
+  gazebo::physics::PhysicsEnginePtr pengine;
+  physics::RayShapePtr curr_ray;
   physics::EntityPtr        parent;
   /* bool                     ledState[20]; */
   ignition::math::Pose3d       ledPose;
@@ -90,7 +93,7 @@ private:
   rendering::VisualPtr visual_current_;
   std::vector<rendering::VisualPtr> visuals_serialized;
 
-  bool occlusion_initialized_;
+  /* bool occlusion_initialized_; */
   //}
 
 public:
@@ -98,17 +101,24 @@ public:
 /* Load //{ */
   void Load(sensors::SensorPtr _parent, sdf::ElementPtr _sdf) {
 
-    occlusion_initialized_ = false;
+    /* occlusion_initialized_ = false; */
 
     gazebo::rendering::Events::createScene("default");
 
 
     std::cout << "Initializing UV camera" << std::endl;
 
+    /* CameraPlugin::Load(_parent, _sdf); */
+    // copying from CameraPlugin into GazeboRosCameraUtils
     // Store the pointer to the model
     this->sensor           = _parent;
-    world                  = physics::get_world("default");
-    std::string parentName = sensor->ParentName();
+
+    /* this->parentSensor->SetActive(false); */
+    world      = physics::get_world("default");
+    pengine      = world->Physics();
+    curr_ray = boost::dynamic_pointer_cast<physics::RayShape>(
+        pengine->CreateShape("ray", physics::CollisionPtr()));
+    std::string parentName = _parent->ParentName();
     parent                 = world->EntityByName(parentName);
     std::cout << "Camera parent name: " << this->sensor->ScopedName() << std::endl;
 
@@ -258,21 +268,46 @@ public:
     pose = sensor->Pose() + parent->WorldPose();
 
     
-    if (!occlusion_initialized_){
-      std::cout << "Initializing world" << std::endl;
-      std::cout << "renderPathType: " << rendering::RenderEngine::Instance()->GetRenderPathType() << std::endl;
-      std::cout << "Scene: " << rendering::RenderEngine::Instance()->GetScene(0) << std::endl;
+    /* occlusion_initialized_ = true; */
+    /* if (!occlusion_initialized_){ */
+    /*   std::cout << "Initializing world" << std::endl; */
+
+    /*   /1* rendering::RenderEngine::Instance()->Init(); *1/ */
+    /*   /1* rendering::fini(); *1/ */
+    /*   rendering::load(); */
+    /*   /1* rendering::init(); *1/ */
+    /*   /1* rendering::load(); *1/ */
+    /*   /1* rendering::init(); *1/ */
+    /*   rendering::create_scene("occlusion", true, true); */
+
+    /*   /1* std::cout << "renderPathType: " << rendering::RenderEngine::Instance()->GetRenderPathType() << std::endl; *1/ */
+    /*   /1* std::cout << "Scene count: " << rendering::RenderEngine::Instance()->SceneCount() << std::endl; *1/ */
       
+    /*   world_scene_ = rendering::get_scene(); */    
+    /*   std::cout << "Scene: " << world_scene_->Name() << std::endl; */
+    /*   /1* world_scene_->Init(); *1/ */
+    /*   if (!(world_scene_)){ */
+    /*     std::cout << "Scene was not found." << std::endl; */
+    /*     return; */
+    /*   } */
+    /*   if (!(world_scene_->Initialized())){ */
+    /*     std::cout << "Scene " << world_scene_->Name() <<" is not initialized." << std::endl; */
+    /*     return; */
+    /*   } */
 
-      world_scene_ = rendering::get_scene();    
-      if (!world_scene_ || !(world_scene_->Initialized()))
-        return;
+    /*   if (!world_scene_ || !(world_scene_->Initialized())) */
+    /*     return; */
 
-      visual_current_ = world_scene_->WorldVisual();
-      meshVisuals(visual_current_, visuals_serialized);
+    /*   std::cout << "Retrieving visual scene objects." << std::endl; */
+    /*   visual_current_ = world_scene_->WorldVisual(); */
+    /*   std::cout << "Serializing occluding objects." << std::endl; */
+    /*   meshVisuals(visual_current_, visuals_serialized); */
 
-      occlusion_initialized_ = true;
-    }
+    /*   occlusion_initialized_ = true; */
+
+    /*   std::cout << "Initialization completed" << std::endl; */
+
+    /* } */
     /* else{ */
     /*   boost::mutex::scoped_lock lock(mtx_occlusion); */
     /* } */
@@ -380,8 +415,8 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
 /* drawPose_virtual //{ */
   bool drawPose_virtual(std::pair<geometry_msgs::Pose,ignition::math::Pose3d> input_poses, cv::Point3d &output){
 
-    if (!occlusion_initialized_)
-      return false;
+    /* if (!occlusion_initialized_) */
+    /*   return false; */
     /* return false; */
     /* std::cout << "A" << std::endl; */
     ignition::math::Pose3d ledPose(
@@ -409,14 +444,14 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     world2cam(ledProj, input, &oc_model);
     a            = ignition::math::Pose3d(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
     b            = ignition::math::Pose3d((pose.Pos()) - (ledPose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
-    c            = ignition::math::Pose3d((ledPose.Pos()) - (pose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
+    /* c            = ignition::math::Pose3d((ledPose.Pos()) - (pose.Pos()), ignition::math::Quaternion<double>(0, 0, 0)); */
 
     /* std::cout << "Here A" << std::endl; */
     /* visual_current_ = world_scene_->GetVisual("tree_*"); */
-    if (visual_current_ != NULL){
-      /* std::cout << "(A) Mesh name: " <<  visual_current_->GetMeshName() << std::endl; */
-      if (getObstacle( pose, c, visuals_serialized)) return false;
-    }
+    /* if (visual_current_ != NULL){ */
+    /*   /1* std::cout << "(A) Mesh name: " <<  visual_current_->GetMeshName() << std::endl; *1/ */
+    /*   if (getObstacle( pose, c, visuals_serialized)) return false; */
+    /* } */
 
     distance     = b.Pos().Length();
     cosAngle     = a.Pos().Dot(b.Pos()) / (distance);
@@ -431,7 +466,10 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     output.y = ledProj[0];
     output.z = radius;
     if (ledIntensity > 0.1) {
-      return true;
+      if (getObstacle( pose, ledPose))
+        return false;
+      else
+        return true;
     }
     else
       return false;
@@ -527,8 +565,21 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
   }
     //}
     
+
 /* getObstacle //{ */
-bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
+bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d led){
+  double led_distance = (camera.Pos() - led.Pos()).Length();
+  curr_ray->SetPoints(camera.Pos(),led.Pos());
+  std::string intersection_entity;
+  double intersection_distance;
+  curr_ray->GetIntersection(intersection_distance, intersection_entity);
+  /* std::cout << "Hitting " << intersection_entity << " at " << distance << " m away." << std::endl; */
+  return (intersection_distance < led_distance) ;
+}
+//}
+
+/* getObstacle_wrong //{ */
+bool getObstacle_wrong(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
     const std::vector<rendering::VisualPtr> &visuals) const
 {
 
