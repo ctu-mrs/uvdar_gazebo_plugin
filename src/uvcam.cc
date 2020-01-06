@@ -41,6 +41,7 @@ private:
   /* std::vector<std::pair<ignition::math::Pose3d,ignition::math::Pose3d>> buffer; */
   int                       id;
   double                    f,T;
+  bool                      _use_occlusions_;
   uchar                     background;
   transport::SubscriberPtr  poseSub;
   transport::SubscriberPtr  stateSub;
@@ -140,6 +141,20 @@ public:
     }
 
     T = 1.0/f;
+
+    if (_sdf->HasElement("occlusion")) {
+      _use_occlusions_ = _sdf->GetElement("occlusion")->Get< bool >();
+    }
+    else
+      _use_occlusions_ = false;
+
+
+    if (_use_occlusions_) {
+      std::cout << "Occlusions in UV camera enabled!" << std::endl;
+    }
+    else {
+      std::cout << "Occlusions in UV camera disabled!" << std::endl;
+    }
 
     /* transport::NodePtr node(new transport::Node()); */
     nh_ = ros::NodeHandle("~");
@@ -568,6 +583,8 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
 
 /* getObstacle //{ */
 bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d led){
+  if (!_use_occlusions_)
+    return false;
   double led_distance = (camera.Pos() - led.Pos()).Length();
   curr_ray->SetPoints(camera.Pos(),led.Pos());
   std::string intersection_entity;
