@@ -10,6 +10,7 @@
 #include <mutex>
 #include <thread>
 #include <uvdar_gazebo_plugin/LedInfo.h>
+#include <mrs_msgs/SetInt.h>
 
 
 namespace gazebo
@@ -33,6 +34,7 @@ private:
   std::mutex                pubMutex;
   std::string               link_name;
 
+    ros::ServiceServer        frequency_setter_;
 public:
   void Load(sensors::SensorPtr _sensor, sdf::ElementPtr _sdf) {
 
@@ -82,6 +84,7 @@ public:
 
     char poseTopicName[30];
     std::sprintf(poseTopicName, "~/uvleds/pose");
+      frequency_setter_ = nh.advertiseService(("/gazebo/ledFrequencySetter/"+link_name).c_str(), &UvLed::callbackSetFrequency, this);
   }
 
 public:
@@ -92,7 +95,7 @@ public:
       ledMsg.isOff.data = false;
       std::cout << "Sending message" << std::endl;
       ledPub.publish(ledMsg);
-    /* pub_thread             = std::thread(&UvLed::PubThread, this); */
+      pub_thread             = std::thread(&UvLed::PubThread, this);
   }
   // Called by the world update start event
 public:
@@ -101,17 +104,26 @@ public:
 
   // Pointer to the sensor
 private:
+    bool callbackSetFrequency(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res){
+      f = req.value;                                                                                                                                                                                                                                                                                              
+      res.message = "Setting the frequency to ";
+      res.message += std::to_string(f);
+      ROS_INFO_STREAM(res.message);
+      res.success = true;  
+      return true;  
+    }
+
   void PubThread() {
-    ros::Rate r(1);  // 10 h
+    ros::Rate r(2); 
     /* r.reset(); */
     while (true) {
       /* pubMutex.lock(); */
       ledMsg.frequency.data = f;
       ledMsg.isOff.data = false;
-      std::cout << "Sending message" << std::endl;
+      /* std::cout << "Sending message, f=" << f << std::endl; */
       ledPub.publish(ledMsg);
       /* pubMutex.unlock(); */
-      return;//latched, so once is enough
+      /* return;//latched, so once is enough */
       r.sleep();
     }
   }

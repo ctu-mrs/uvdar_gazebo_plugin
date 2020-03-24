@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf
   message_generation
+  mrs_msgs
 )
 
 add_message_files(DIRECTORY msg FILES
