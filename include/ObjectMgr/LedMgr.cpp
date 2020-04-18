@@ -15,7 +15,7 @@ void LedMgr::update_link_pose(const std::string& link_name, const geometry_msgs:
 }
 
 void LedMgr::update_frequency(double i_frequency){ /* std::cout << "setting frequency to " << i_frequency << std::endl; */
-  std::cout << "Updating frequency to " << i_frequency << std::endl;
+  /* std::cout << "Updating frequency to " << i_frequency << std::endl; */
   f = i_frequency;
   T  = 1.0 / f;
   Th = T / 2.0;

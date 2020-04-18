@@ -215,6 +215,7 @@ private:
     /* clock_t begin, end; */
     /* clock_t begin_p, end_p; */
     /* double  elapsedTime; */
+    pengine->InitForThread();
 
     ros::Rate rt(f);
     geometry_msgs::Pose cur_pose;
@@ -401,7 +402,7 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     std::string topic = mhdr["topic"];
     std::string link_name = topic.substr(std::string("/gazebo/ledProperties/").length());
     const uvdar_gazebo_plugin::LedInfoConstPtr& led_info = event.getMessage();
-    std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl;
+    /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
     _leds_by_name_.at(link_name)->update_frequency(led_info->frequency.data);
 }
 //}
@@ -481,10 +482,14 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     output.y = ledProj[0];
     output.z = radius;
     if (ledIntensity > 0.1) {
-      if (getObstacle( pose, ledPose))
+      if (getObstacle( pose, ledPose)){
+        /* std::cout << "Hitting obstacle " << std::endl; */
         return false;
-      else
+      }
+      else{
+        /* std::cout << "Line of sight " << std::endl; */
         return true;
+      }
     }
     else
       return false;
@@ -590,8 +595,9 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d led){
   std::string intersection_entity;
   double intersection_distance;
   curr_ray->GetIntersection(intersection_distance, intersection_entity);
-  /* std::cout << "Hitting " << intersection_entity << " at " << distance << " m away." << std::endl; */
-  return (intersection_distance < led_distance) ;
+  /* std::cout << "Hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; */
+  /* std::cout << "LED should be " << led_distance << " m away." << std::endl; */
+  return ((intersection_distance*1.01) < led_distance) ;
 }
 //}
 

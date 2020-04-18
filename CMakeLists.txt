@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 project(uvdar_gazebo_plugin)
 
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-diagnostics-color -fmessage-length=0 -std=c++11 -Wno-return-type -Wno-unused-result -Wno-unused-variable -Wno-maybe-uninitialized")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-diagnostics-color -fmessage-length=0 -std=c++11 -Wno-return-type -Wno-unused-result -Wno-unused-variable -Wno-maybe-uninitialized")
 
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
@@ -35,7 +35,7 @@ find_package(roscpp REQUIRED)
 find_package(OpenCV REQUIRED HINTS /usr/local/lib)
 include_directories(${GAZEBO_INCLUDE_DIRS} ${OPENCV_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS} include)
 link_directories(${GAZEBO_LIBRARY_DIRS} ${OPENCV_LIBRARY_DIRS})
-list(APPEND CMAKE_CXX_FLAGS "${GAZEBO_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 
 add_library(uvdar_led SHARED src/uvled.cc)
 target_link_libraries(uvdar_led ${GAZEBO_LIBRARIES})
