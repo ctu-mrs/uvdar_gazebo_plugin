@@ -18,7 +18,7 @@
   <depend>mrs_msgs</depend>
   <depend>msg_generation</depend>
 
-  <depend>uvdar</depend>
+  <depend>uvdar_core</depend>
   
   <export>
     <!-- Other tools can request additional information be placed here -->
