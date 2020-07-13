@@ -20,7 +20,7 @@ Additionally, the requirements increase further if you enable obstacle occlusion
   * [ROS (Robot Operating System)](https://www.ros.org/) Melodic Morenia
   * [Gazebo robotic simulator](http://gazebosim.org/) - Gazebo simulator v. 9.13
   * [mrs_msgs](https://github.com/ctu-mrs/mrs_msgs) - ROS package with message types used by the MRS group
-  * [UVDAR drivers and processing](https://github.com/ctu-mrs/uvdar) - Processing of the UVDAR inputs
+  * [uvdar_core](https://github.com/ctu-mrs/uvdar) - Processing of the UVDAR inputs
 
 #### For testing 
   * [mrs_uav_system](https://github.com/ctu-mrs/mrs_uav_system) Our ROS-based ecosystem for flying and testing multi-UAV systems. Includes simulation with examples of attaching this plugin to objects in the simulated world
