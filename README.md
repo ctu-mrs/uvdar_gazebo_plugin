@@ -13,7 +13,7 @@ Compatibility with other versions is currently not guaranteed.
 
 #### Hardware:
 Fairly powerful CPU. Ideally have at least one core/thread per each camera included in the simulation.
-Additionally ,the requirements increase further if you enable obstacle occlusions
+Additionally, the requirements increase further if you enable obstacle occlusions - this is necessary to test the effects of partial or complete occlusions on the precision of the estimation
 
 
 #### Software
