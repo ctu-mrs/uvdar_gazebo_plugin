@@ -32,7 +32,7 @@ If you are using the `mrs_modules` meta package (currently only accessable inter
 Build the package using catkin tools (e.g. `catkin build uvdar_gazebo_plugin`)
 
 ## Testing
-See in [UVDAR drivers and processing](https://github.com/ctu-mrs/uvdar)
+See in [uvdar_core](https://github.com/ctu-mrs/uvdar)
 
 ## Acknowledgements
 
