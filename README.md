@@ -4,7 +4,7 @@
 
 ## Description
 This package contains plugins for generating synthetic outputs emulating the images produced by UV-sensitive cameras onboard of MAVs, observing blinking UV LEDs attached to targets
-The output is used in simulations involving the [UVDAR System](https://github.com/ctu-mrs/uvdar) for mutual relative localization of MAVs
+The output is used in simulations involving the [UVDAR System](https://github.com/ctu-mrs/uvdar_core) for mutual relative localization of MAVs
 
 This package was developed for the [Gazebo robotic simulator](http://gazebosim.org/) and it has been tested with version 9.13.
 Compatibility with other versions is currently not guaranteed.
@@ -20,7 +20,7 @@ Additionally, the requirements increase further if you enable obstacle occlusion
   * [ROS (Robot Operating System)](https://www.ros.org/) Melodic Morenia
   * [Gazebo robotic simulator](http://gazebosim.org/) - Gazebo simulator v. 9.13
   * [mrs_msgs](https://github.com/ctu-mrs/mrs_msgs) - ROS package with message types used by the MRS group
-  * [uvdar_core](https://github.com/ctu-mrs/uvdar) - Processing of the UVDAR inputs
+  * [uvdar_core](https://github.com/ctu-mrs/uvdar_core) - Processing of the UVDAR inputs
 
 #### For testing 
   * [mrs_uav_system](https://github.com/ctu-mrs/mrs_uav_system) Our ROS-based ecosystem for flying and testing multi-UAV systems. Includes simulation with examples of attaching this plugin to objects in the simulated world
@@ -32,7 +32,7 @@ If you are using the `mrs_modules` meta package (currently only accessable inter
 Build the package using catkin tools (e.g. `catkin build uvdar_gazebo_plugin`)
 
 ## Testing
-See in [uvdar_core](https://github.com/ctu-mrs/uvdar)
+See in [uvdar_core](https://github.com/ctu-mrs/uvdar_core)
 
 ## Acknowledgements
 
