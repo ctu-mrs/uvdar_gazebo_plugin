@@ -21,8 +21,10 @@ private:
   int                     n;
   double                  updatePeriod;
   float                   f;
+  bool leds_info;
   /* transport::PublisherPtr posePub; */
   ros::Publisher ledPub;
+  ros::Subscriber ledInfoSub;
   /* transport::PublisherPtr statePub ; */
   gazebo::physics::WorldPtr world;
   physics::EntityPtr        parent;
@@ -34,10 +36,12 @@ private:
   std::mutex                pubMutex;
   std::string               link_name;
 
-    ros::ServiceServer        frequency_setter_;
+  ros::ServiceServer        frequency_setter_;
+
 public:
   void Load(sensors::SensorPtr _sensor, sdf::ElementPtr _sdf) {
 
+    ledInfoSub=nh.subscribe("/uvdar_swarm/rxtx", 1,&UvLed::led_info_cb, this);
 
     std::cout << "Loading UV LED" << std::endl;
 
@@ -102,6 +106,10 @@ public:
   void OnUpdate() {
   }
 
+public:
+void led_info_cb(const std_msgs::Bool& msg) {
+  leds_info=msg.data;
+}
   // Pointer to the sensor
 private:
     bool callbackSetFrequency(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res){
@@ -114,12 +122,23 @@ private:
     }
 
   void PubThread() {
-    ros::Rate r(2); 
+    ros::Rate r(2);
+    _Float64 f_max=std::numeric_limits<_Float64>::max();
+    bool round = true;
     /* r.reset(); */
     while (true) {
+
+      if(!leds_info){
+       ledMsg.frequency.data = f;
+      }
+//      else{
+//       ledMsg.frequency.data = 0;
+//      }
       /* pubMutex.lock(); */
-      ledMsg.frequency.data = f;
+      //ledMsg.frequency.data = f;
       ledMsg.isOff.data = false;
+      round=!round;
+      //ledMsg.isOff.data = false;
       /* std::cout << "Sending message, f=" << f << std::endl; */
       ledPub.publish(ledMsg);
       /* pubMutex.unlock(); */
