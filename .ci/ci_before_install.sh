@@ -35,12 +35,17 @@ cd simulation
 echo "running the main install.sh"
 ./installation/install.sh
 
+echo "clone uvdar_core"
+cd
+git clone https://github.com/ctu-mrs/uvdar_core.git
+
 MY_PATH=`dirname $TRAVIS_BUILD_DIR`
 
 mkdir -p ~/catkin_ws/src
 cd ~/catkin_ws/src
 ln -s ~/uav_core
 ln -s ~/simulation
+ln -s ~/uvdar_core
 ln -s "$MY_PATH" uvdar_gazebo_plugin
 source /opt/ros/$ROS_DISTRO/setup.bash
 cd ~/catkin_ws
