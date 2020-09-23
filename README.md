@@ -1,6 +1,9 @@
-# UVDAR Gazebo plugin [![Build Status](https://travis-ci.com/ctu-mrs/uvdar_gazebo_plugin.svg?branch=master)](https://travis-ci.com/ctu-mrs/uvdar_gazebo_plugin)
+# UVDAR Gazebo plugin
 
 ![](.fig/thumbnail.jpg)
+
+| Build status | [![Build Status](http://badges.herokuapp.com/travis.com/ctu-mrs/uvdar_gazebo_plugin?env=BADGE=bionic&label=Melodic)](https://travis-ci.com/ctu-mrs/uvdar_gazebo_plugin) | [![Build Status](http://badges.herokuapp.com/travis.com/ctu-mrs/uvdar_gazebo_plugin?env=BADGE=focal&label=Noetic)](https://travis-ci.com/ctu-mrs/uvdar_gazebo_plugin) |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
 ## Description
 This package contains plugins for generating synthetic outputs emulating the images produced by UV-sensitive cameras onboard of MAVs, observing blinking UV LEDs attached to targets
