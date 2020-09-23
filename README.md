@@ -1,4 +1,7 @@
-# UVDAR Gazebo plugin [![Build Status](https://travis-ci.com/ctu-mrs/uvdar_gazebo_plugin.svg?branch=master)](https://travis-ci.com/ctu-mrs/uvdar_gazebo_plugin)
+# UVDAR Gazebo plugin
+
+| Build status | [![Build Status](http://badges.herokuapp.com/travis.com/ctu-mrs/uvdar_gazebo_plugin?env=BADGE=bionic&label=Melodic)](https://travis-ci.com/ctu-mrs/uvdar_gazebo_plugin) | [![Build Status](http://badges.herokuapp.com/travis.com/ctu-mrs/uvdar_gazebo_plugin?env=BADGE=focal&label=Noetic)](https://travis-ci.com/ctu-mrs/uvdar_gazebo_plugin) |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
 ![](.fig/thumbnail.jpg)
 
