@@ -117,10 +117,13 @@ public:
     /* this->parentSensor->SetActive(false); */
     world      = physics::get_world("default");
     pengine      = world->Physics();
-    curr_ray = boost::dynamic_pointer_cast<physics::RayShape>(
-        pengine->CreateShape("ray", physics::CollisionPtr()));
+    /* curr_ray = boost::dynamic_pointer_cast<physics::RayShape>( */
+    /*     pengine->CreateShape("ray", physics::CollisionPtr())); */
     std::string parentName = _parent->ParentName();
     parent                 = world->EntityByName(parentName);
+
+    curr_ray = boost::dynamic_pointer_cast<physics::RayShape>(pengine->CreateShape("ray", parent->GetChildCollision("base_link_inertia_collision")));
+
     std::cout << "Camera parent name: " << this->sensor->ScopedName() << std::endl;
 
     if (_sdf->HasElement("calibration_file")) {
@@ -596,7 +599,8 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d led){
   std::string intersection_entity;
   double intersection_distance;
   curr_ray->GetIntersection(intersection_distance, intersection_entity);
-  /* std::cout << "Hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; */
+  /* std::cout << "Ray has child collision " <<curr_ray->GetChildCount() << std::endl; */
+  /* std::cout << "Cam ray " << this->sensor->ScopedName() << " hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; */
   /* std::cout << "LED should be " << led_distance << " m away." << std::endl; */
   return ((intersection_distance*1.01) < led_distance) ;
 }
