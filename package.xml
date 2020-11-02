@@ -15,8 +15,11 @@
   <depend>image_transport</depend>
   <depend>gazebo</depend>
   <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
   <depend>mrs_msgs</depend>
-  <depend>msg_generation</depend>
+  <depend>message_runtime</depend>
+  <depend>message_generation</depend>
 
   <depend>uvdar_core</depend>
   
