@@ -596,9 +596,16 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d led){
   std::string intersection_entity;
   double intersection_distance;
   curr_ray->GetIntersection(intersection_distance, intersection_entity);
-  /* std::cout << "Hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; */
+  bool hitting_obstacle;
+  hitting_obstacle = ((intersection_distance*1.01) < led_distance);
+  hitting_obstacle &= (intersection_distance > 0.000001); //For collisions with UAV's own box ("Hitting uav1::base_link::base_link_inertia_collision at 1.01221e-06 m away.")
+  std::size_t found = intersection_entity.find("inertia_collision");
+  hitting_obstacle &= (found==std::string::npos);
+  /* if (hitting_obstacle){ */
+  /* /1*   std::cout << "Hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; *1/ */
+  /* } */
   /* std::cout << "LED should be " << led_distance << " m away." << std::endl; */
-  return ((intersection_distance*1.01) < led_distance) ;
+  return hitting_obstacle;
 }
 //}
 
