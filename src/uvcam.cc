@@ -595,9 +595,15 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d led){
   std::string intersection_entity;
   double intersection_distance;
   curr_ray->GetIntersection(intersection_distance, intersection_entity);
+
+  bool hitting_obstacle;
+  hitting_obstacle = ((intersection_distance*1.01) < led_distance);
+  hitting_obstacle &= (intersection_distance > 0.0001);
+  std::size_t found = intersection_entity.find("inertia_collision");
+  hitting_obstacle &= (found==std::string::npos);
   /* std::cout << "Hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; */
   /* std::cout << "LED should be " << led_distance << " m away." << std::endl; */
-  return ((intersection_distance*1.01) < led_distance) ;
+  return (hitting_obstacle) ;
 }
 //}
 
