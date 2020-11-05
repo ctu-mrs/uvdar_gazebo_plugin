@@ -40,6 +40,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 add_library(uvdar_led SHARED src/uvled.cc)
 target_link_libraries(uvdar_led ${GAZEBO_LIBRARIES})
 
+# add_library(collisions SHARED include/collisions/collision_kernel.cpp  include/collisions/collision_space.cpp)
+
 add_library(uvdar_cam SHARED src/uvcam.cc include/undistortFunctions/ocam_functions.cpp include/ObjectMgr/ObjectMgr.cpp include/ObjectMgr/LedMgr.cpp)
 target_link_libraries(uvdar_cam ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES} ${OpenCV_LIBRARIES} CameraPlugin)
 add_dependencies(uvdar_cam ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
