@@ -397,6 +397,7 @@ void linkCallback(const gazebo_msgs::LinkStatesConstPtr &link_states)
 
 /* void ledCallback //{ */
 void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& event){
+  boost::mutex::scoped_lock lock(mtx_leds);
   /* std::cout << "Getting message" << std::endl; */
     ros::M_string mhdr = event.getConnectionHeader();
     std::string topic = mhdr["topic"];
