@@ -9,12 +9,6 @@
 #include <gazebo/common/common.hh>
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
-#include <gazebo/physics/ode/ODEPhysics.hh>
-#include <gazebo/physics/ode/ODECollision.hh>
-#include <gazebo/physics/ode/ODETypes.hh>
-#include <gazebo/physics/ode/ODERayShape.hh>
-#include "collisions/collision_kernel.h"
-#include "collisions/collision_std.h"
 #include "collisions/intersection.hpp"
 #include <gazebo/sensors/sensors.hh>
 #include "gazebo/rendering/Conversions.hh"
@@ -57,6 +51,7 @@ private:
   gazebo::physics::WorldPtr world;
   gazebo::physics::PhysicsEnginePtr pengine;
   physics::RayShapePtr curr_ray;
+  boost::shared_ptr<ODERayHack::RayIntersectorHack> ray_int_hack;
   physics::EntityPtr        parent;
   /* bool                     ledState[20]; */
   ignition::math::Pose3d       ledPose;
@@ -124,8 +119,10 @@ public:
     /* this->parentSensor->SetActive(false); */
     world      = physics::get_world("default");
     pengine      = world->Physics();
+
     curr_ray = boost::dynamic_pointer_cast<physics::RayShape>(
         pengine->CreateShape("ray", physics::CollisionPtr()));
+    ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine);
     std::string parentName = _parent->ParentName();
     parent                 = world->EntityByName(parentName);
     std::cout << "Camera parent name: " << this->sensor->ScopedName() << std::endl;
@@ -664,47 +661,10 @@ bool getObstacle_granular(ignition::math::Pose3d camera, ignition::math::Pose3d 
           /* &intersection, &UpdateCallback); */
     /* } */
 
-  curr_ray->SetPoints(camera.Pos(),led.Pos());
   /* std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now(); */
 
-  auto geom = (dGeomID)((boost::static_pointer_cast<gazebo::physics::ODEPhysics>(pengine))->GetSpaceId());
-  if (!geom){
-    std::cerr << "[UVDAR camera]: Could not access space for occlusion retrieval. Returning." << std::endl;
-    return false;
-  }
-
-  /* lock_count++; */
-
-  /* ((dxSpace*)geom)->cleanGeoms(); */
-
-  auto ode_ray = boost::static_pointer_cast<gazebo::physics::ODERayShape>(curr_ray);
-  auto ray_geomid = (dxSpace*)(ode_ray)->ODEGeomId();
-  auto first = (ray_geomid)->first;
-
-	/* if (IS_SPACE(geom)) */ 
-    /* std::cout << "[UVDAR camera]: WORLD is space." << std::endl; */
-  /* else */
-    /* std::cout << "[UVDAR camera]: WORLD is NOT space." << std::endl; */
-
-	/* if (IS_SPACE(ray_geomid)) */ 
-    /* std::cout << "[UVDAR camera]: RAY is space." << std::endl; */
-  /* else */
-    /* std::cout << "[UVDAR camera]: RAY is NOT space." << std::endl; */
-
-  ODERayHack::recomputeAABB(geom);
-
   ODERayHack::Intersection intersection;
-  intersection.depth = 1000;
-
-  // intersect bounding boxes
-  for (dxGeom *g=first; g; g=g->next) {
-    /* if (GEOM_ENABLED(g)){ */
-/* ode_ray->UpdateCallback */
-
-    dNearCallback* dummy;
-    ODERayHack::collideAABBs (g,geom,&intersection,dummy);
-    /* } */
-  }
+  ray_int_hack->getIntersection(camera, led, intersection);
 
   std::string intersection_entity = intersection.name;
   double intersection_distance = intersection.depth;
@@ -712,8 +672,10 @@ bool getObstacle_granular(ignition::math::Pose3d camera, ignition::math::Pose3d 
 
   bool hitting_obstacle;
   hitting_obstacle =  ((intersection_distance*1.01) < led_distance);
-  hitting_obstacle &= (intersection_distance > 0.0001);
-  hitting_obstacle &= (intersection_entity.find("inertia_collision")==std::string::npos);
+
+  /* std::cout << "Hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; */
+  /* hitting_obstacle &= (intersection_distance > 0.0001); */
+  /* hitting_obstacle &= (intersection_entity.find("inertia_collision")==std::string::npos); */
 
 
   return (hitting_obstacle) ;
