@@ -6,6 +6,8 @@
 #include "collisions/collision_kernel.h"
 #include "collisions/odemath.h"
 
+#define INIFINITE_RANGE 1000
+
 //dMaxUserClasses = 4
 //these are the defined tyeps of geometry:
 /* enum { */
@@ -53,6 +55,8 @@ namespace ODERayHack {
       dxSpace* world_space;
       dxGeom* world_geom;
       gazebo::physics::ODERayShapePtr ode_ray;
+      double led_distance = INIFINITE_RANGE;
+      bool got_obstacle = false;
 
     public:
       RayIntersectorHack(
@@ -123,6 +127,8 @@ defult:
       }
 
       void dSpaceCollide2 (dxSpace *s1, dxGeom *g2, void *data){
+        if (got_obstacle)
+          return; //significant acceleration - we don't really care about the range, just if we have line of sight
 
         auto g1 = (dGeomID)(s1);
         recomputeAABB(g1);
@@ -133,6 +139,9 @@ defult:
 
         /* std::cout << "ray_geomid is " << ray_geomid->type << std::endl; */
         for (dxGeom *g=(s1)->first; g; g=g->next) {
+          if (got_obstacle)
+            return; //significant acceleration - we don't really care about the range, just if we have line of sight
+
           if (g->type == dRayClass){
             continue;
           }
@@ -176,6 +185,9 @@ defult:
           a[4] = dInfinity;
           a[5] = -dInfinity;
           for (dxGeom *g=space_i->first; g; g=g->next) {
+          if (got_obstacle)
+            return; //significant acceleration - we don't really care about the range, just if we have line of sight
+
             /* std::cout << "HERE H: g: " << g << std::endl; */
             recomputeAABB(g);
             /* std::cout << "HERE H2" << std::endl; */
@@ -232,6 +244,9 @@ defult:
 
       void collideAABBs (dxGeom *g1, dxGeom *g2, void *data)
       {
+        if (got_obstacle)
+          return; //significant acceleration - we don't really care about the range, just if we have line of sight
+
         /* std::cout << "HERE O" << std::endl; */
         dIASSERT((g1->gflags & GEOM_AABB_BAD)==0);
         dIASSERT((g2->gflags & GEOM_AABB_BAD)==0);
@@ -272,6 +287,9 @@ defult:
 
       void nextLevel(void *_data, dGeomID _o1, dGeomID _o2)
       {
+        if (got_obstacle)
+          return; //significant acceleration - we don't really care about the range, just if we have line of sight
+
         dContactGeom contact;
         ODERayHack::Intersection *inter = nullptr;
 
@@ -347,10 +365,11 @@ defult:
 
             if (n > 0)
             {
-              if (contact.depth < inter->depth)
+
+              /* if (contact.depth < inter->depth) */
+              if (contact.depth < led_distance)
               {
-                std::cout << "Geometry type [" << _o1->type << "]" << std::endl;
-                std::cout << "Name: [" << hitCollision->GetName() << "]" << std::endl;
+                got_obstacle = true;
                 inter->depth = contact.depth;
                 inter->name = hitCollision->GetScopedName();
               }
@@ -365,12 +384,14 @@ defult:
           /* gazebo::physics::RayShapePtr curr_ray, */ 
           Intersection &intersection){
 
+        got_obstacle = false;
+        led_distance = (camera.Pos() - led.Pos()).Length();
         ode_ray->SetPoints(camera.Pos(),led.Pos());
         /* auto ode_ray = boost::static_pointer_cast<gazebo::physics::ODERayShape>(curr_ray); */
         auto ray_geomid = (dxSpace*)(ode_ray)->ODEGeomId();
 
 
-        intersection.depth = 1000;
+        intersection.depth = INIFINITE_RANGE;
         dSpaceCollide2(world_space, ray_geomid, &intersection);
         return 0;
       }
