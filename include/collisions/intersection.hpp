@@ -316,6 +316,9 @@ defult:
           if (collision1->GetName().find("inertia_collision")!=std::string::npos){ // this is the money line
             return;
           }
+          if (collision1->GetScopedName().find("rotor")!=std::string::npos){ // this is the money line
+            return;
+          }
           /* if (dGeomGetClass(_o2) == dGeomTransformClass) */
           /*   collision2 = */
           /*     static_cast<gazebo::physics::ODECollision*>(dGeomGetData(dGeomTransformGetGeom(_o2))); */
