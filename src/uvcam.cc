@@ -122,10 +122,10 @@ public:
 
     curr_ray = boost::dynamic_pointer_cast<physics::RayShape>(
         pengine->CreateShape("ray", physics::CollisionPtr()));
-    ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine);
     std::string parentName = _parent->ParentName();
     parent                 = world->EntityByName(parentName);
     std::cout << "Camera parent name: " << this->sensor->ScopedName() << std::endl;
+    ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine, this->sensor->ScopedName());
 
     if (_sdf->HasElement("calibration_file")) {
       filename = _sdf->GetElement("calibration_file")->Get< std::string >();

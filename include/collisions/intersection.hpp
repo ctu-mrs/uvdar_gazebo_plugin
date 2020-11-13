@@ -3,8 +3,11 @@
 #include <gazebo/physics/ode/ODETypes.hh>
 #include <gazebo/physics/ode/ODERayShape.hh>
 #include "collisions/collision_std.h"
+#include "collisions/collision_trimesh_internal.h"
+#include "collisions/heightfield.h"
 #include "collisions/collision_kernel.h"
 #include "collisions/odemath.h"
+#include <chrono>
 
 #define INIFINITE_RANGE 1000
 
@@ -34,6 +37,7 @@
 /* 18   dGeomNumClasses */
 /* }; */
 
+
 #define IS_SPACE(geom) \
   ((geom)->type >= dFirstSpaceClass && (geom)->type <= dLastSpaceClass)
 
@@ -51,27 +55,39 @@ namespace ODERayHack {
 
   class RayIntersectorHack
   {
+
     private:
+      bool debug = false;
       dxSpace* world_space;
       dxGeom* world_geom;
       gazebo::physics::ODERayShapePtr ode_ray;
       double led_distance = INIFINITE_RANGE;
       bool got_obstacle = false;
 
+
+      int curr_depth_indent = 0;
+      std::string camera_name;
+      std::vector<std::pair<std::string,int>>  elapsedTime;
+
     public:
       RayIntersectorHack(
-          gazebo::physics::PhysicsEnginePtr pengine
+          gazebo::physics::PhysicsEnginePtr pengine,
+          std::string camera_name_i,
+          bool debug_i = false
           ){
+        debug = debug_i;
+        camera_name = camera_name_i;
 
         world_space = (boost::static_pointer_cast<gazebo::physics::ODEPhysics>(pengine))->GetSpaceId();
         world_geom = (dGeomID)(world_space);
         if (!world_geom){
-          std::cerr << "[UVDAR camera]: Could not access space for occlusion retrieval. Returning." << std::endl;
+          std::cerr << "[UV CAM collisions]: ["<< camera_name <<"]: Could not access space for occlusion retrieval. Returning." << std::endl;
           return;
         }
 
         ode_ray = boost::dynamic_pointer_cast<gazebo::physics::ODERayShape>(
             pengine->CreateShape("ray", gazebo::physics::CollisionPtr()));
+
       }
 
     private:
@@ -100,44 +116,136 @@ namespace ODERayHack {
       }
 
       void recomputeAABB(dxGeom* geom_i) {
+
         /* std::cout << "HERE A" << std::endl; */
         if (geom_i->gflags & GEOM_AABB_BAD) {
           /* std::cout << "HERE B" << std::endl; */
           // our aabb functions assume final_posr is up to date
+          curr_depth_indent ++;
+          auto begin_rcPosr = std::chrono::high_resolution_clock::now();
           recomputePosr(geom_i); 
+          auto end_rcPosr = std::chrono::high_resolution_clock::now();
+          elapsedTime.push_back({currDepthIndent() + "recomputePosr of "+std::to_string(geom_i->type),std::chrono::duration_cast<std::chrono::microseconds>(end_rcPosr - begin_rcPosr).count()});
+          curr_depth_indent --;
           /* std::cout << "HERE C" << std::endl; */
-          switch (geom_i->type) {
+
+          switch (geom_i->type) 
+          {
             case (dSimpleSpaceClass):
-              computeAABB((dxSpace*)geom_i);
-              break;
+              {
+                curr_depth_indent ++;
+                computeAABB((dxSpace*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
             case (dHashSpaceClass):
-              computeAABB((dxSpace*)geom_i);
-              break;
+              {
+                curr_depth_indent ++;
+                computeAABB((dxSpace*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
             case (dRayClass):
-              computeAABB((dxRay*)geom_i);
-              break;
-defult:
-              std::cout << "Encountered unaddressed geometry type [" << geom_i->type << "]" << std::endl;
-              return;
+              {
+                curr_depth_indent ++;
+                computeAABB((dxRay*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
+            case (dCylinderClass):
+              {
+                curr_depth_indent ++;
+                computeAABB((dxCylinder*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
+            case (dSphereClass):
+              {
+                curr_depth_indent ++;
+                computeAABB((dxSphere*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
+            case (dBoxClass):
+              {
+                curr_depth_indent ++;
+                computeAABB((dxBox*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
+            case (dCapsuleClass):
+              {
+                curr_depth_indent ++;
+                computeAABB((dxCapsule*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
+            case (dPlaneClass):
+              {
+                curr_depth_indent ++;
+                computeAABB((dxPlane*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
+            case (dConvexClass):
+              {
+                curr_depth_indent ++;
+                computeAABB((dxConvex*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
+            case (dTriMeshClass):
+              {
+                curr_depth_indent ++;
+                computeAABB((dxTriMesh*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
+            case (dHeightfieldClass):
+              {
+                curr_depth_indent ++;
+                computeAABB((dxHeightfield*)geom_i);
+                curr_depth_indent --;
+                break;
+              }
+            case (dGeomTransformClass):
+              {
+                break;
+              }
+            default:
+              {
+                std::cerr << "[UV CAM collisions]: [" << camera_name << "]: Encountered unaddressed geometry type [" << geom_i->type << "]" << std::endl;
+                return;
+              }
           }
           /* std::cout << "HERE D" << std::endl; */
           geom_i->gflags &= ~GEOM_AABB_BAD;
           /* std::cout << "HERE D2" << std::endl; */
         }
+
       }
 
       void dSpaceCollide2 (dxSpace *s1, dxGeom *g2, void *data){
         if (got_obstacle)
           return; //significant acceleration - we don't really care about the range, just if we have line of sight
 
+
         auto g1 = (dGeomID)(s1);
+        auto begin_rcAABB = std::chrono::high_resolution_clock::now();
+        curr_depth_indent ++;
         recomputeAABB(g1);
+        curr_depth_indent --;
+        auto end_rcAABB = std::chrono::high_resolution_clock::now();
+        elapsedTime.push_back({currDepthIndent() + "Top level recomputeAABB",std::chrono::duration_cast<std::chrono::microseconds>(end_rcAABB - begin_rcAABB).count()});
         /* std::cout << "HERE V" << std::endl; */
 
 
         // intersect bounding boxes
 
         /* std::cout << "ray_geomid is " << ray_geomid->type << std::endl; */
+
+        auto begin_collisionTOP = std::chrono::high_resolution_clock::now();
+        curr_depth_indent ++;
         for (dxGeom *g=(s1)->first; g; g=g->next) {
           if (got_obstacle)
             return; //significant acceleration - we don't really care about the range, just if we have line of sight
@@ -167,14 +275,31 @@ defult:
           /* } */
 
           if (GEOM_ENABLED(g)){
+
+            auto begin_collisionGEOM = std::chrono::high_resolution_clock::now();
+
+            curr_depth_indent ++;
             collideAABBs (g,g2,data);
+            curr_depth_indent --;
+            auto end_collisionGEOM = std::chrono::high_resolution_clock::now();
+            elapsedTime.push_back({currDepthIndent() + "Object collision calculation between "+ std::to_string(g->type) +" and "+ std::to_string(g2->type)+
+                (g->data?" ["+ static_cast<gazebo::physics::Base*>(dGeomGetData(g))->GetName()+"]":"")+
+                (g2->data?"-["+ static_cast<gazebo::physics::Base*>(dGeomGetData(g1))->GetName() +"]":""),
+                std::chrono::duration_cast<std::chrono::microseconds>(end_collisionGEOM - begin_collisionGEOM).count()
+                });
           }
           /* std::cout << "HERE X" << std::endl; */
         }
+
+        curr_depth_indent --;
+        auto end_collisionTOP = std::chrono::high_resolution_clock::now();
+        elapsedTime.push_back({currDepthIndent() + "Top level collision calculation",std::chrono::duration_cast<std::chrono::microseconds>(end_collisionTOP - begin_collisionTOP).count()});
       }
 
       void computeAABB(dxSpace* space_i)
       {
+        auto begin_cSpace = std::chrono::high_resolution_clock::now();
+
         if (space_i->first) {
           int i;
           dReal a[6];
@@ -185,18 +310,30 @@ defult:
           a[4] = dInfinity;
           a[5] = -dInfinity;
           for (dxGeom *g=space_i->first; g; g=g->next) {
-          if (got_obstacle)
-            return; //significant acceleration - we don't really care about the range, just if we have line of sight
+            if (got_obstacle)
+              return; //significant acceleration - we don't really care about the range, just if we have line of sight
 
             /* std::cout << "HERE H: g: " << g << std::endl; */
+
+            auto begin_rcAABB = std::chrono::high_resolution_clock::now();
             recomputeAABB(g);
+            auto end_rcAABB = std::chrono::high_resolution_clock::now();
+
+            elapsedTime.push_back({currDepthIndent() + "Lower level recomputeAABB of "+ std::to_string(g->type)+
+                (g->data?" ["+static_cast<gazebo::physics::Base*>(dGeomGetData(g))->GetName()+"]":""),
+                std::chrono::duration_cast<std::chrono::microseconds>(end_rcAABB - begin_rcAABB).count()
+                });
+
             /* std::cout << "HERE H2" << std::endl; */
             for (i=0; i<6; i += 2) if (g->aabb[i] < a[i]) a[i] = g->aabb[i];
             for (i=1; i<6; i += 2) if (g->aabb[i] > a[i]) a[i] = g->aabb[i];
             /* std::cout << "HERE H3" << std::endl; */
           }
           /* std::cout << "HERE I" << std::endl; */
+          auto begin_memcopy = std::chrono::high_resolution_clock::now();
           memcpy(space_i->aabb,a,6*sizeof(dReal));
+          auto end_memcopy = std::chrono::high_resolution_clock::now();
+          elapsedTime.push_back({currDepthIndent() + "Memcopy",std::chrono::duration_cast<std::chrono::microseconds>(end_memcopy - begin_memcopy).count()});
           /* std::cout << "HERE J" << std::endl; */
         }
         else {
@@ -204,6 +341,9 @@ defult:
           dSetZero (space_i->aabb,6);
           /* std::cout << "HERE L" << std::endl; */
         }
+
+        auto end_cSpace = std::chrono::high_resolution_clock::now();
+        elapsedTime.push_back({currDepthIndent() + "Space type computeAABB",std::chrono::duration_cast<std::chrono::microseconds>(end_cSpace - begin_cSpace).count()});
       }
       void computeAABB(dxRay* ray_i)
       {
@@ -240,6 +380,53 @@ defult:
           ray_i->aabb[5] = ray_i->final_posr->pos[2];
         }
         /* std::cout << "HERE N" << std::endl; */
+      }
+
+      void computeAABB(dxCylinder* cylinder_i)
+      {
+        const dMatrix3& R = cylinder_i->final_posr->R;
+        const dVector3& pos = cylinder_i->final_posr->pos;
+
+        dReal xrange = dFabs (R[0] * cylinder_i->radius) +	 dFabs (R[1] * cylinder_i->radius) + REAL(0.5)* dFabs (R[2] * 
+            cylinder_i->lz);
+        dReal yrange = dFabs (R[4] * cylinder_i->radius) +   dFabs (R[5] * cylinder_i->radius) + REAL(0.5)* dFabs (R[6] * 
+            cylinder_i->lz);
+        dReal zrange = dFabs (R[8] * cylinder_i->radius) +	 dFabs (R[9] * cylinder_i->radius) + REAL(0.5)* dFabs (R[10] * 
+            cylinder_i->lz);
+        cylinder_i->aabb[0] = pos[0] - xrange;
+        cylinder_i->aabb[1] = pos[0] + xrange;
+        cylinder_i->aabb[2] = pos[1] - yrange;
+        cylinder_i->aabb[3] = pos[1] + yrange;
+        cylinder_i->aabb[4] = pos[2] - zrange;
+        cylinder_i->aabb[5] = pos[2] + zrange;
+      }
+
+      void computeAABB(dxBox* cylinder_i){
+        cylinder_i->computeAABB();
+      }
+
+      void computeAABB(dxSphere* sphere_i){
+        sphere_i->computeAABB();
+      }
+
+      void computeAABB(dxCapsule* capsule_i){
+        capsule_i->computeAABB();
+      }
+
+      void computeAABB(dxPlane* plane_i){
+        plane_i->computeAABB();
+      }
+
+      void computeAABB(dxConvex* convex_i){
+        convex_i->computeAABB();
+      }
+
+      void computeAABB(dxTriMesh* trimesh_i){
+        trimesh_i->computeAABB();
+      }
+
+      void computeAABB(dxHeightfield* heightfield_i){
+        heightfield_i->computeAABB();
       }
 
       void collideAABBs (dxGeom *g1, dxGeom *g2, void *data)
@@ -283,6 +470,7 @@ defult:
 
         // the objects might actually intersect - call the space callback function
         nextLevel(data,g1,g2);
+
       }
 
       void nextLevel(void *_data, dGeomID _o1, dGeomID _o2)
@@ -298,12 +486,15 @@ defult:
         // Check space
         if (dGeomIsSpace(_o1))
         {
+
+          curr_depth_indent ++;
           dSpaceCollide2((dxSpace*)(_o1), _o2, _data);
+          curr_depth_indent --;
         }
         else
         {
           gazebo::physics::ODECollision *collision1;
-            /* , *collision2; */
+          /* , *collision2; */
           gazebo::physics::ODECollision *hitCollision = nullptr;
 
           // Get pointers to the underlying collisions
@@ -372,13 +563,18 @@ defult:
               /* if (contact.depth < inter->depth) */
               if (contact.depth < led_distance)
               {
-                got_obstacle = true;
                 inter->depth = contact.depth;
                 inter->name = hitCollision->GetScopedName();
+                got_obstacle = true;
               }
             }
           }
         }
+      }
+
+    private:
+      std::string currDepthIndent(){
+        return std::string(2*curr_depth_indent, ' ');
       }
 
     public:
@@ -395,7 +591,18 @@ defult:
 
 
         intersection.depth = INIFINITE_RANGE;
+        auto begin       = std::chrono::high_resolution_clock::now();
+        curr_depth_indent ++;
         dSpaceCollide2(world_space, ray_geomid, &intersection);
+        curr_depth_indent = 0;
+        auto end         = std::chrono::high_resolution_clock::now();
+        elapsedTime.push_back({"Top level dSpaceCollide2",std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()});
+        if (debug){
+          for (auto timing : elapsedTime){
+            std::cout << "[UV CAM collisions]: ["<< camera_name <<"]: " << timing.first << " took : " << double(timing.second)/1000.0 << " ms" << std::endl;
+          }
+          elapsedTime.clear();
+        }
         return 0;
       }
 
