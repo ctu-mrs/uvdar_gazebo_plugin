@@ -125,7 +125,7 @@ public:
     std::string parentName = _parent->ParentName();
     parent                 = world->EntityByName(parentName);
     std::cout << "Camera parent name: " << this->sensor->ScopedName() << std::endl;
-    ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine, this->sensor->ScopedName());
+    ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine, this->sensor->ScopedName(), true);
 
     if (_sdf->HasElement("calibration_file")) {
       filename = _sdf->GetElement("calibration_file")->Get< std::string >();
