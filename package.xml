@@ -22,7 +22,7 @@
   <depend>message_generation</depend>
 
   <depend>uvdar_core</depend>
-  
+
   <export>
     <!-- Other tools can request additional information be placed here -->
   </export>

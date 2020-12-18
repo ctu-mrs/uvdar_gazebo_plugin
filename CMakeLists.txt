@@ -22,7 +22,7 @@ generate_messages(
   DEPENDENCIES
   std_msgs
   )
-  
+
 catkin_package(
    INCLUDE_DIRS include
    CATKIN_DEPENDS cv_bridge image_transport roscpp sensor_msgs std_msgs message_runtime uvdar_core

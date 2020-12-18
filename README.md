@@ -2,8 +2,8 @@
 
 ![](.fig/thumbnail.jpg)
 
-| Build status | [![Build Status](http://badges.herokuapp.com/travis.com/ctu-mrs/uvdar_gazebo_plugin?env=BADGE=bionic&label=Melodic)](https://travis-ci.com/ctu-mrs/uvdar_gazebo_plugin) | [![Build Status](http://badges.herokuapp.com/travis.com/ctu-mrs/uvdar_gazebo_plugin?env=BADGE=focal&label=Noetic)](https://travis-ci.com/ctu-mrs/uvdar_gazebo_plugin) |
-|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Build status | [![Build Status](https://github.com/ctu-mrs/uvdar_gazebo_plugin/workflows/Melodic/badge.svg)](https://github.com/ctu-mrs/uvdar_gazebo_plugin/actions) | [![Build Status](https://github.com/ctu-mrs/uvdar_gazebo_plugin/workflows/Noetic/badge.svg)](https://github.com/ctu-mrs/uvdar_gazebo_plugin/actions) |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 
 ## Description
 This package contains plugins for generating synthetic outputs emulating the images produced by UV-sensitive cameras onboard of MAVs, observing blinking UV LEDs attached to targets
@@ -25,7 +25,7 @@ Additionally, the requirements increase further if you enable obstacle occlusion
   * [mrs_msgs](https://github.com/ctu-mrs/mrs_msgs) - ROS package with message types used by the MRS group
   * [uvdar_core](https://github.com/ctu-mrs/uvdar_core) - Processing of the UVDAR inputs
 
-#### For testing 
+#### For testing
   * [mrs_uav_system](https://github.com/ctu-mrs/mrs_uav_system) Our ROS-based ecosystem for flying and testing multi-UAV systems. Includes simulation with examples of attaching this plugin to objects in the simulated world
 
 ## Installation
