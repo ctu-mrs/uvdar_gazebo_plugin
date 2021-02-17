@@ -103,29 +103,40 @@ public:
 
   // Pointer to the sensor
 private:
-    bool callbackSetFrequency(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res) {
-      f = req.value;
-      if(f==INT_MAX) {
-        ledMsg.frequency.data = std::numeric_limits<_Float64>::max();
-      }
-      else{
-        ledMsg.frequency.data = f;
-      }
-      res.message = "Setting the frequency to ";
-      res.message += std::to_string(f);
-      ROS_INFO_STREAM(res.message);
-      res.success = true;
-      return true;
+  bool callbackSetFrequency(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res) {
+    f                     = req.value;
+    
+    if(f==INT_MAX) {
+      ledMsg.frequency.data = std::numeric_limits<_Float64>::max();
     }
+    else{
+      ledMsg.frequency.data = f;
+    }
+    ledMsg.isOff.data     = false;
+    ledPub.publish(ledMsg);
+
+    // std::cout << link_name << " " << f << std::endl;
+
+    res.message = "Setting the frequency to ";
+    res.message += std::to_string(f);
+    // ROS_INFO_STREAM(res.message);
+    res.success = true;
+    return true;
+  }
 
   void PubThread() {
     ros::Rate r(2);
     while (true) {
 
-    ledMsg.frequency.data = f;
-    ledMsg.isOff.data     = false;
-    ledPub.publish(ledMsg);
-    r.sleep();
+      if (!true) {
+        ledMsg.frequency.data = f;
+        ledMsg.isOff.data     = false;
+        ledPub.publish(ledMsg);
+        // std::cout << "Publishing base frequency, UVDAR in localization mode" << std::endl;
+      } else {
+        // std::cout << "Ignoring base frequency, UVDAR in RXTX mode" << link_name << std::endl;
+      }
+      r.sleep();
     }
   }
 
