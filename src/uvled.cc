@@ -22,6 +22,9 @@ private:
   double          updatePeriod;
   float           f;
   bool            leds_info = false;
+
+  int             ID;
+
   /* transport::PublisherPtr posePub; */
   ros::Publisher ledPub;
   /* transport::PublisherPtr statePub ; */
@@ -91,6 +94,7 @@ public:
     std::cout << "Initializing UV LED" << n << std::endl;
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
     ledMsg.frequency.data  = f;
+    ledMsg.ID.data  = 0;
     ledMsg.isOff.data      = false;
     std::cout << "Sending message" << std::endl;
     ledPub.publish(ledMsg);

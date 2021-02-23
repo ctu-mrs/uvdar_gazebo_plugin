@@ -96,6 +96,7 @@ private:
   rendering::VisualPtr visual_current_;
   std::vector<rendering::VisualPtr> visuals_serialized;
 
+  std::vector<std::vector<bool>> sequences_;
   /* bool occlusion_initialized_; */
   //}
 
@@ -205,6 +206,8 @@ public:
     /* ledState[i] = false; */
 
     get_ocam_model(&oc_model, (char*)(filename.c_str()));
+
+    parseSequenceFile("/home/viktor/mrs_workspace/src/uav_modules/ros_packages/uvdar_meta/uvdar_core/config/BlinkingSequence-8-3-3-2-8.txt");
     /* cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0))); */
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
 
@@ -408,7 +411,8 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     std::string link_name = topic.substr(std::string("/gazebo/ledProperties/").length());
     const uvdar_gazebo_plugin::LedInfoConstPtr& led_info = event.getMessage();
     /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
-    _leds_by_name_.at(link_name)->update_frequency(led_info->frequency.data);
+    /* _leds_by_name_.at(link_name)->update_frequency(led_info->frequency.data); */
+    _leds_by_name_.at(link_name)->update_sequence(sequences_[led_info->ID.data],75.0);
 }
 //}
 
@@ -700,6 +704,58 @@ void meshVisuals(const rendering::VisualPtr _visual,
 }
 //}
 
+  /**
+   * @brief Loads the file with lines describing useful blinking singals
+   *
+   * @param sequence_file The input file name
+   *
+   * @return Success status
+   */
+  /* parseSequenceFile //{ */
+  bool parseSequenceFile(std::string sequence_file){
+    std::cout << "[UVDAR camera]: Add sanitation - sequences must be of equal, non-zero length" << std::endl;
+    std::cout << "[UVDAR camera]: Loading sequence from file: [ " + sequence_file + " ]" << std::endl;
+    std::ifstream ifs;
+    ifs.open(sequence_file);
+    std::string word;
+    std::string line;
+
+    std::vector<std::vector<bool>> sequences;
+    if (ifs.good()) {
+      std::cout << "[UVDAR camera]: Loaded Sequences: [: " << std::endl;
+      while (getline( ifs, line )){
+        if (line[0] == '#'){
+          continue;
+        }
+        std::string show_string = "";
+        std::vector<bool> sequence;
+        std::stringstream iss(line); 
+        std::string token;
+        while(std::getline(iss, token, ',')) {
+          sequence.push_back(token=="1");
+          if (sequence.back()){
+            show_string += "1,";
+          }
+          else {
+            show_string += "0,";
+          }
+        }
+        sequences.push_back(sequence);
+        std::cout << "[UVDAR camera]:   [" << show_string << "]" << std::endl;
+      }
+      std::cout << "[UVDAR camera]: ]" << std::endl;
+      ifs.close();
+
+      sequences_ = sequences;
+    }
+    else {
+      std::cout << "[UVDAR camera]: Failed to load sequence file " << sequence_file << "! Returning." << std::endl;
+      ifs.close();
+      return false;
+    }
+    return true;
+  }
+  //}
 };
 
 // Register this plugin with the simulator
