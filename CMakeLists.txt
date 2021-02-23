@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.1.2 FATAL_ERROR)
 project(uvdar_gazebo_plugin)
 
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-diagnostics-color -fmessage-length=0 -std=c++17 -Wno-return-type -Wno-unused-result -Wno-unused-variable -Wno-maybe-uninitialized")
@@ -42,6 +41,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 
 add_library(uvdar_led SHARED src/uvled.cc)
 target_link_libraries(uvdar_led ${GAZEBO_LIBRARIES})
+
+# add_library(collisions SHARED include/collisions/collision_kernel.cpp  include/collisions/collision_space.cpp)
 
 add_library(uvdar_cam SHARED src/uvcam.cc include/undistortFunctions/ocam_functions.cpp include/ObjectMgr/ObjectMgr.cpp include/ObjectMgr/LedMgr.cpp)
 target_link_libraries(uvdar_cam ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES} ${OpenCV_LIBRARIES} CameraPlugin)

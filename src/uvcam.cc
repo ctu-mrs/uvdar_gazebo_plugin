@@ -9,6 +9,7 @@
 #include <gazebo/common/common.hh>
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
+#include "collisions/intersection.hpp"
 #include <gazebo/sensors/sensors.hh>
 #include "gazebo/rendering/Conversions.hh"
 #include "gazebo/rendering/Visual.hh"
@@ -50,6 +51,7 @@ private:
   gazebo::physics::WorldPtr world;
   gazebo::physics::PhysicsEnginePtr pengine;
   physics::RayShapePtr curr_ray;
+  boost::shared_ptr<ODERayHack::RayIntersectorHack> ray_int_hack;
   physics::EntityPtr        parent;
   /* bool                     ledState[20]; */
   ignition::math::Pose3d       ledPose;
@@ -117,11 +119,13 @@ public:
     /* this->parentSensor->SetActive(false); */
     world      = physics::get_world("default");
     pengine      = world->Physics();
+
     curr_ray = boost::dynamic_pointer_cast<physics::RayShape>(
         pengine->CreateShape("ray", physics::CollisionPtr()));
     std::string parentName = _parent->ParentName();
     parent                 = world->EntityByName(parentName);
     std::cout << "Camera parent name: " << this->sensor->ScopedName() << std::endl;
+    ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine, this->sensor->ScopedName());
 
     if (_sdf->HasElement("calibration_file")) {
       filename = _sdf->GetElement("calibration_file")->Get< std::string >();
@@ -461,14 +465,7 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     world2cam(ledProj, input, &oc_model);
     a            = ignition::math::Pose3d(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
     b            = ignition::math::Pose3d((pose.Pos()) - (ledPose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
-    /* c            = ignition::math::Pose3d((ledPose.Pos()) - (pose.Pos()), ignition::math::Quaternion<double>(0, 0, 0)); */
 
-    /* std::cout << "Here A" << std::endl; */
-    /* visual_current_ = world_scene_->GetVisual("tree_*"); */
-    /* if (visual_current_ != NULL){ */
-    /*   /1* std::cout << "(A) Mesh name: " <<  visual_current_->GetMeshName() << std::endl; *1/ */
-    /*   if (getObstacle( pose, c, visuals_serialized)) return false; */
-    /* } */
 
     distance     = b.Pos().Length();
     cosAngle     = a.Pos().Dot(b.Pos()) / (distance);
@@ -483,10 +480,19 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     output.y = ledProj[0];
     output.z = radius;
     if (ledIntensity > 0.1) {
-      if (getObstacle( pose, ledPose)){
+      
+    /* std::cout << "Here A" << std::endl; */
+    /*   visual_current_ = world_scene_->GetVisual("tree_*"); */
+    /* std::cout << "Here B" << std::endl; */
+      /* if (visual_current_ != NULL){ */
+        /* auto diff = ignition::math::Pose3d((ledPose.Pos()) - (pose.Pos()), ignition::math::Quaternion<double>(0, 0, 0)); */
+        if (getObstacle_granular( pose, ledPose))
+          return false;
+      /* } */
+      /* if (getObstacle( pose, ledPose)){ */
         /* std::cout << "Hitting obstacle " << std::endl; */
-        return false;
-      }
+        /* return false; */
+      /* } */
       else{
         /* std::cout << "Line of sight " << std::endl; */
         return true;
@@ -589,134 +595,91 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
 
 /* getObstacle //{ */
 bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d led){
+  /* std::chrono::steady_clock::time_point begin_t = std::chrono::steady_clock::now(); */
+
   if (!_use_occlusions_)
     return false;
   double led_distance = (camera.Pos() - led.Pos()).Length();
+
+  /* std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now(); */
   curr_ray->SetPoints(camera.Pos(),led.Pos());
+  /* std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now(); */
+  /* std::chrono::duration<double> elapsed_1 = end - begin; */
+
   std::string intersection_entity;
   double intersection_distance;
+
+  /* begin = std::chrono::steady_clock::now(); */
   curr_ray->GetIntersection(intersection_distance, intersection_entity);
+  /* end = std::chrono::steady_clock::now(); */
+  /* std::chrono::duration<double> elapsed_2 = end - begin; */
 
   bool hitting_obstacle;
-  hitting_obstacle = ((intersection_distance*1.01) < led_distance);
+  hitting_obstacle =  ((intersection_distance*1.01) < led_distance);
   hitting_obstacle &= (intersection_distance > 0.0001);
   hitting_obstacle &= (intersection_entity.find("inertia_collision")==std::string::npos);
+
+  /* if (! (intersection_entity.find("inertia_collision")==std::string::npos)) */
+  /*     std::cout << "Hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; */
   /* if (hitting_obstacle) */
-  /*   std::cout << "Hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; */
+    /* std::cout << "Hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; */
   /* std::cout << "LED should be " << led_distance << " m away." << std::endl; */
+
+
+
+  /* std::chrono::steady_clock::time_point finish_t = std::chrono::steady_clock::now(); */
+  /* std::chrono::duration<double> elapsed_t = finish_t - begin_t; */
+
+  /* std::cout << "Elapsed time: setup: " << elapsed_1.count() << " s\n"; */
+  /* std::cout << "Elapsed time: intersection: " << elapsed_2.count() << " s\n"; */
+  /* std::cout << "Elapsed time: total: " << elapsed_t.count() << " s\n"; */
+
   return (hitting_obstacle) ;
 }
 //}
 
-/* getObstacle_wrong //{ */
-bool getObstacle_wrong(ignition::math::Pose3d camera, ignition::math::Pose3d diff,
-    const std::vector<rendering::VisualPtr> &visuals) const
+
+/* getObstacle_granular //{ */
+bool getObstacle_granular(ignition::math::Pose3d camera, ignition::math::Pose3d led)
 {
+  if (!_use_occlusions_)
+    return false;
 
-  /* std::cout << "Cam. pose: " << camera.Pos() << "; Diff. vector: " << diff << std::endl; */
-
-  // create the ray to test
-  Ogre::Vector3 camVec(camera.Pos().X(),camera.Pos().Y(),camera.Pos().Z());
-  Ogre::Ray ray =
-    Ogre::Ray( camVec, Ogre::Vector3(diff.Pos().X(),diff.Pos().Y(),diff.Pos().Z())) ;
-
-  /* std::vector<rendering::VisualPtr> visuals; */
-
-  Ogre::Real closestDistance = -1.0f;
-  Ogre::Vector3 closestResult;
-  /* bool newClosestFound = false; */
-  std::vector<Ogre::Vector3> vertices;
-
-    /* visual_current_->GetSceneNode()->_update(true, false); */
-  for (unsigned int i = 0; i < visuals.size(); ++i)
-  {
-    /* visuals[i]->GetSceneNode()->_update(false, true); */
-    if ((camVec - visuals[i]->GetSceneNode()->_getDerivedPosition()).length() >10)
-      continue;
-    /* std::cout << "Visual name: " <<  visuals[i]->Name() << std::endl; */
-    const common::Mesh *mesh =
-        common::MeshManager::Instance()->GetMesh(visuals[i]->GetMeshName());
-
-    if (!mesh)
-      continue;
-
-
-    /* std::cout << "Here A" << std::endl; */
-    Ogre::Matrix4 transform = visuals[i]->GetSceneNode()->_getFullTransform();
-    /* std::cout << "Transform: " << transform << std::endl; */
-    // test for hitting individual triangles on the mesh
-    /* std::cout << "Object " << visuals[i]->Name() << " - Submesh count: " << mesh->GetSubMeshCount() << std::endl; */
-    for (unsigned int j = 0; j < mesh->GetSubMeshCount(); ++j)
-    {
-    /* std::cout << "Here C" << std::endl; */
-      const common::SubMesh *submesh = mesh->GetSubMesh(j);
-    /* std::cout << "Submesh " << j << " - Index count: " << submesh->GetIndexCount() << std::endl; */
-      if (submesh->GetVertexCount() < 3u)
-        continue;
-      unsigned int indexCount = submesh->GetIndexCount();
-      for (unsigned int k = 0; k < indexCount; k += 3)
-      {
-        if (indexCount <= k+2)
-          continue;
-
-        ignition::math::Vector3d vertexA =
-          submesh->Vertex(submesh->GetIndex(k));
-        ignition::math::Vector3d vertexB =
-          submesh->Vertex(submesh->GetIndex(k+1));
-        ignition::math::Vector3d vertexC =
-          submesh->Vertex(submesh->GetIndex(k+2));
-
-    /* std::cout << "Here C" << std::endl; */
-        Ogre::Vector3 worldVertexA = transform * rendering::Conversions::Convert(vertexA);
-        Ogre::Vector3 worldVertexB = transform * rendering::Conversions::Convert(vertexB);
-        Ogre::Vector3 worldVertexC = transform * rendering::Conversions::Convert(vertexC);
-
-        // check for a hit against this triangle
-    /* std::cout << "Here D" << std::endl; */
-        std::pair<bool, Ogre::Real> hit = Ogre::Math::intersects(ray,
-            worldVertexA, worldVertexB, worldVertexC,
-           (worldVertexB - worldVertexA).crossProduct(
-           worldVertexC - worldVertexA));
-
-    /* std::cout << "Here E" << std::endl; */
-        // if it was a hit check if its the closest
-        if (hit.first &&
-            (closestDistance < 0.0f || hit.second < closestDistance))
-        {
-          // this is the closest so far, save it off
-          if (hit.second < 1.0){ //since the vector is expresed as total difference between the cam. and the led distance, 1.0 means the hit occurs exactly at the led position.
-            /* std::cout << "FOUND OBSTACLE! Distance: "<< hit.second << std::endl; */
-            return true;
-          }
-
-          closestDistance = hit.second;
-          vertices.clear();
-          vertices.push_back(worldVertexA);
-          vertices.push_back(worldVertexB);
-          vertices.push_back(worldVertexC);
-        }
-      }
-    }
+  if (pengine->GetType() != "ode"){
+    std::cerr << "[UVDAR camera]: Fast occulsions are only implemented for ODE physics engine. Returning." << std::endl;
+    return false;
   }
 
-  // if we found a new closest raycast for this object, update the
-  // closestResult before moving on to the next object.
-  /* if (newClosestFound) */
-  /*   closestResult = ray.getPoint(closestDistance); */
 
-  // return the result
-  /* if (closestDistance >= 0.0f && vertices.size() == 3u) */
-  /* { */
-  /*   // raycast success */
-  /*   _intersect = Conversions::ConvertIgn(closestResult); */
-  /*   _triangle.Set( */
-  /*       Conversions::ConvertIgn(vertices[0]), */
-  /*       Conversions::ConvertIgn(vertices[1]), */
-  /*       Conversions::ConvertIgn(vertices[2])); */
-  /*   return true; */
-  /* } */
-  // raycast failed
-  return false;
+  double led_distance = (camera.Pos() - led.Pos()).Length();
+  /* std::cout << "Cam. pose: " << camera.Pos() << "; Diff. vector: " << diff << std::endl; */
+
+  boost::recursive_mutex::scoped_lock lock(*(pengine->GetPhysicsUpdateMutex()));
+
+      // Do collision detection
+      /* dSpaceCollide2(this->geomId, */
+          /* (dGeomID)(this->physicsEngine->GetSpaceId()), */
+          /* &intersection, &UpdateCallback); */
+    /* } */
+
+  /* std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now(); */
+
+  ODERayHack::Intersection intersection;
+  ray_int_hack->getIntersection(camera, led, intersection);
+
+  std::string intersection_entity = intersection.name;
+  double intersection_distance = intersection.depth;
+
+
+  bool hitting_obstacle;
+  hitting_obstacle =  ((intersection_distance*1.01) < led_distance);
+
+  /* std::cout << "Hitting " << intersection_entity << " at " << intersection_distance << " m away." << std::endl; */
+  /* hitting_obstacle &= (intersection_distance > 0.0001); */
+  /* hitting_obstacle &= (intersection_entity.find("inertia_collision")==std::string::npos); */
+
+
+  return (hitting_obstacle) ;
 }
 
 
