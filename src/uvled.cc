@@ -57,6 +57,14 @@ public:
       std::cout << "Could not find the link name of the LED" << std::endl;
     }
 
+    if (_sdf->HasElement("signal_id")) {
+      ID = _sdf->GetElement("signal_id")->Get<int>();
+      std::cout << "LED signal ID is " << ID << std::endl;
+    } else {
+      std::cout << "LED signal_id is not set" << std::endl;
+      ID = -1;
+    }
+
     if (_sdf->HasElement("frequency")) {
       f = _sdf->GetElement("frequency")->Get<double>();
       std::cout << "LED frequency is " << f << "Hz" << std::endl;
@@ -91,10 +99,10 @@ public:
 
 public:
   void Init() {
-    std::cout << "Initializing UV LED" << n << std::endl;
+    std::cout << "Initializing UV LED " << n << std::endl;
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
     ledMsg.frequency.data  = f;
-    ledMsg.ID.data  = 3;
+    ledMsg.ID.data  = ID;
     ledMsg.isOff.data      = false;
     std::cout << "Sending message" << std::endl;
     ledPub.publish(ledMsg);
