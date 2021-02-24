@@ -94,7 +94,7 @@ public:
     std::cout << "Initializing UV LED" << n << std::endl;
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
     ledMsg.frequency.data  = f;
-    ledMsg.ID.data  = 0;
+    ledMsg.ID.data  = 3;
     ledMsg.isOff.data      = false;
     std::cout << "Sending message" << std::endl;
     ledPub.publish(ledMsg);

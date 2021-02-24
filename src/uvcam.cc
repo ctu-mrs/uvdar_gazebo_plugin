@@ -207,7 +207,8 @@ public:
 
     get_ocam_model(&oc_model, (char*)(filename.c_str()));
 
-    parseSequenceFile("/home/viktor/mrs_workspace/src/uav_modules/ros_packages/uvdar_meta/uvdar_core/config/BlinkingSequence-8-3-3-2-8.txt");
+    /* parseSequenceFile("/home/viktor/mrs_workspace/src/uav_modules/ros_packages/uvdar_meta/uvdar_core/config/BlinkingSequence-8-3-3-2-8.txt"); */
+    parseSequenceFile("/home/viktor/mrs_workspace/src/uav_modules/ros_packages/uvdar_meta/uvdar_core/config/selected.txt");
     /* cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0))); */
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
 
