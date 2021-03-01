@@ -28,7 +28,7 @@ class LedMgr : public ObjectMgr
     std::vector<bool> sequence;
     double seq_duration;
     double bit_rate;
-    double time_scaler;
+    /* double time_scaler; */
 
     double f;
     double T;

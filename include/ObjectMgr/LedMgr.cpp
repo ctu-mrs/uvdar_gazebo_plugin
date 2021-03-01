@@ -28,7 +28,7 @@ void LedMgr::update_sequence(std::vector<bool> i_sequence, double i_bit_rate){ /
   sequence = i_sequence;
   bit_rate = i_bit_rate;
   seq_duration = (double)(sequence.size())/bit_rate;
-  time_scaler = (double)(sequence.size())/seq_duration;
+  /* time_scaler = (double)(sequence.size())/seq_duration; */
   sequence_initialized = true;
 }
 
@@ -67,8 +67,8 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
     if (!sequence_initialized)
       return false;
 
-    int seq_index = (int)(fmod(nowTime, seq_duration)*time_scaler);
-    seq_index = std::min((int)(sequence.size())-1,seq_index);
+    int seq_index = (int)(fmod(nowTime, seq_duration)*bit_rate);
+    seq_index = std::min((int)(sequence.size())-1,seq_index);//sanitization
     if (sequence[seq_index]){
       output = m_pose;
       return true;
