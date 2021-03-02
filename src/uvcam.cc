@@ -225,7 +225,7 @@ private:
     /* double  elapsedTime; */
     pengine->InitForThread();
 
-    ros::Rate rt(f);
+    ros::Rate rt(f + ((double(rand()%100)/50.0)-1.0)); //to simulate the possible difference between the camera framerate and the blinking generator bit rate. This has to be done here, since LEDs on a single UAV are always synchronized w.r.t. each other.
     geometry_msgs::Pose cur_pose;
     cv::Point3d output;
     geometry_msgs::Point32 pt;
@@ -246,7 +246,7 @@ private:
       /* for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){ */
       msg_ptcl.header.stamp = ros::Time::now();
       msg_ptcl.points.clear();
-      double sec_time = ros::Time::now().toSec();
+      double sec_time = msg_ptcl.header.stamp.toSec();
       for (auto& ledr : _leds_by_name_){
         {
           boost::mutex::scoped_lock lock(mtx_leds);
@@ -414,7 +414,7 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
     /* _leds_by_name_.at(link_name)->update_frequency(led_info->frequency.data); */
     if ((led_info->ID.data >= 0) && (led_info->ID.data < (int)(sequences_.size()))){
-      _leds_by_name_.at(link_name)->update_sequence(sequences_[led_info->ID.data],60.0);
+      _leds_by_name_.at(link_name)->update_sequence(sequences_[led_info->ID.data],f);
     }
     else {
       std::cerr << "[UVDAR camera]: Invalid sequence ID: " << led_info->ID.data << std::endl;
