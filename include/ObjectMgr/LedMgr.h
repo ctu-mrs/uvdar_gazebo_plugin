@@ -9,6 +9,8 @@
 #include "ObjectMgr.h"
 #include "LedMgr.h"
 
+#define DIAG_SIGNAL_LENGTH 50
+
 class LedMgr : public ObjectMgr
 {
   public:
@@ -35,6 +37,11 @@ class LedMgr : public ObjectMgr
     double Th;
     bool frequency_initialized = false;
     bool sequence_initialized = false;
+
+    char diag_signal[DIAG_SIGNAL_LENGTH+1];
+    char diag_order[DIAG_SIGNAL_LENGTH+1];
+    int dsi = -1;
+    std::string diag_seq;
 };
 
 #endif //LEDMGR_H

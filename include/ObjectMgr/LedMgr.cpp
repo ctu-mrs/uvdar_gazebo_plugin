@@ -7,6 +7,9 @@ LedMgr::LedMgr(
     )
   : ObjectMgr(nh, name, "led_link") {
 
+
+  diag_signal[DIAG_SIGNAL_LENGTH] = '\0';
+  diag_order[DIAG_SIGNAL_LENGTH] = '\0';
   mode = 1; //set special sequence mode
   return;
 }
@@ -26,6 +29,12 @@ void LedMgr::update_frequency(double i_frequency){ /* std::cout << "setting freq
 void LedMgr::update_sequence(std::vector<bool> i_sequence, double i_bit_rate){ /* std::cout << "setting frequency to " << i_frequency << std::endl; */
   /* std::cout << "Updating frequency to " << i_frequency << std::endl; */
   sequence = i_sequence;
+  /* if (diag_seq.length() < (int)(sequence.size())) */
+  diag_seq = "";
+  for (auto s: sequence){
+    diag_seq += (s?'1':'0');
+  }
+
   bit_rate = i_bit_rate;
   seq_duration = (double)(sequence.size())/bit_rate;
   /* time_scaler = (double)(sequence.size())/seq_duration; */
@@ -44,6 +53,20 @@ void LedMgr::update_sequence(std::vector<bool> i_sequence, double i_bit_rate){ /
 /*     update_sequence(i_sequence); */
 /*   } */
 /* } */
+
+char toHex(int input){
+  if (input < 16){
+    if (input < 10){
+      return char(input+48);
+    }
+    else {
+      return char(input+55);
+    }
+  }
+  else {
+    return '*';
+  }
+}
 
 bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
   if (!m_pose_initialized)
@@ -64,14 +87,29 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
     }
   }
   else if (mode == 1){
-    if (!sequence_initialized)
+    dsi++;
+    if (dsi>=DIAG_SIGNAL_LENGTH){
+      dsi = 0;
+      /* std::cout << "Signal from LED s:" << diag_seq << " was:\n" << diag_signal << "\n" << diag_order << std::endl; */
+    }
+    if (!sequence_initialized){
+      diag_signal[dsi] = '0';
+      diag_order[dsi] = '0';
       return false;
+    }
 
     int seq_index = (int)(fmod(nowTime, seq_duration)*bit_rate);
     seq_index = std::min((int)(sequence.size())-1,seq_index);//sanitization
     if (sequence[seq_index]){
       output = m_pose;
+      diag_signal[dsi] = '1';
+      diag_order[dsi] = toHex(seq_index);
       return true;
+    }
+    else{
+      diag_signal[dsi] = '0';
+      diag_order[dsi] = toHex(seq_index);
+      return false;
     }
   }
 

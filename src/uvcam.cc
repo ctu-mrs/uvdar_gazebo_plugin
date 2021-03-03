@@ -225,7 +225,8 @@ private:
     /* double  elapsedTime; */
     pengine->InitForThread();
 
-    ros::Rate rt(f + ((double(rand()%100)/50.0)-1.0)); //to simulate the possible difference between the camera framerate and the blinking generator bit rate. This has to be done here, since LEDs on a single UAV are always synchronized w.r.t. each other.
+    /* ros::Rate rt(f + ((double(rand()%100)/50.0)-1.0)); //to simulate the possible difference between the camera framerate and the blinking generator bit rate. This has to be done here, since LEDs on a single UAV are always synchronized w.r.t. each other. */
+    ros::Rate rt(f);
     geometry_msgs::Pose cur_pose;
     cv::Point3d output;
     geometry_msgs::Point32 pt;
