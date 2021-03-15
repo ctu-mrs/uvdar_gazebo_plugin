@@ -231,7 +231,8 @@ private:
     cv::Point3d output;
     geometry_msgs::Point32 pt;
     sensor_msgs::PointCloud msg_ptcl;
-    std::pair<std::string, std::shared_ptr<LedMgr> > led;
+    std::unordered_map<std::string, std::shared_ptr<LedMgr> > leds_by_name_local;
+    /* std::pair<std::string, std::shared_ptr<LedMgr> > led; */
     while (ros::ok()){
       /* begin         = std::clock(); */
       //CHECK: Optimize the following
@@ -245,14 +246,15 @@ private:
       /* elapsedTime = double(end_p - begin) / CLOCKS_PER_SEC; */
       /* std::cout << "UV CAM: Wiping took : " << elapsedTime << " s" << std::endl; */
       /* for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){ */
+      {
+        boost::mutex::scoped_lock lock(mtx_leds);
+        leds_by_name_local = _leds_by_name_;
+        /* led = ledr; */
+      }
       msg_ptcl.header.stamp = ros::Time::now();
       msg_ptcl.points.clear();
       double sec_time = msg_ptcl.header.stamp.toSec();
-      for (auto& ledr : _leds_by_name_){
-        {
-          boost::mutex::scoped_lock lock(mtx_leds);
-          led = ledr;
-        }
+      for (auto& led : leds_by_name_local){
         if (led.second->get_pose(cur_pose, sec_time)){
           if (drawPose_virtual({cur_pose,pose}, output)){
             pt.x = output.x;
