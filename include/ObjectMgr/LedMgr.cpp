@@ -90,7 +90,7 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
     dsi++;
     if (dsi>=DIAG_SIGNAL_LENGTH){
       dsi = 0;
-      std::cout << "Signal from LED s:" << diag_seq << " was:\n" << diag_signal << "\n" << diag_order << std::endl;
+      /* std::cout << "Signal from LED s:" << diag_seq << " was:\n" << diag_signal << "\n" << diag_order << std::endl; */
     }
     if (!sequence_initialized){
       diag_signal[dsi] = '0';
