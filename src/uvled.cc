@@ -11,6 +11,7 @@
 #include <thread>
 #include <uvdar_gazebo_plugin/LedInfo.h>
 #include <mrs_msgs/SetInt.h>
+#include <mrs_msgs/Float64Srv.h>
 
 
 namespace gazebo
@@ -19,10 +20,11 @@ class UvLed : public SensorPlugin {
 private:
   ros::NodeHandle nh;
   int             n;
-  double          updatePeriod;
-  float           f;
+  /* double          updatePeriod; */
+  /* float           f; */
   bool            leds_info = false;
 
+  double          f;
   int             ID;
 
   /* transport::PublisherPtr posePub; */
@@ -38,6 +40,7 @@ private:
   std::mutex                   pubMutex;
   std::string                  link_name;
 
+  ros::ServiceServer signal_setter_;
   ros::ServiceServer frequency_setter_;
 
 public:
@@ -69,9 +72,10 @@ public:
       f = _sdf->GetElement("frequency")->Get<double>();
       std::cout << "LED frequency is " << f << "Hz" << std::endl;
     } else {
-      std::cout << "LED frequency defaulting to 10Hz." << std::endl;
-      f = 10.0;  // camera framerate
+      std::cout << "LED frequency defaulting to 60Hz." << std::endl;
+      f = 60.0;  // camera framerate
     }
+
     if (_sdf->HasElement("number")) {
       n = _sdf->GetElement("number")->Get<int>();
       std::cout << "LED number is " << n << std::endl;
@@ -80,12 +84,12 @@ public:
       n = -1;  // camera framerate
     }
 
-    updatePeriod = 1.0;
-    if (_sdf->HasElement("updateRate")) {
-      updatePeriod = 1.0 / _sdf->GetElement("updateRate")->Get<double>();
-      std::cout << "Update rate is " << 1.0 / updatePeriod << "Hz" << std::endl;
-    } else
-      std::cout << "Update rate defaulting to 1 Hz" << std::endl;
+    /* updatePeriod = 1.0; */
+    /* if (_sdf->HasElement("updateRate")) { */
+    /*   updatePeriod = 1.0 / _sdf->GetElement("updateRate")->Get<double>(); */
+    /*   std::cout << "Update rate is " << 1.0 / updatePeriod << "Hz" << std::endl; */
+    /* } else */
+    /*   std::cout << "Update rate defaulting to 1 Hz" << std::endl; */
 
 
     transport::NodePtr node(new transport::Node());
@@ -94,6 +98,7 @@ public:
 
     char poseTopicName[30];
     std::sprintf(poseTopicName, "~/uvleds/pose");
+    signal_setter_ = nh.advertiseService(("/gazebo/ledSignalSetter/" + link_name).c_str(), &UvLed::callbackSetSignal, this);
     frequency_setter_ = nh.advertiseService(("/gazebo/ledFrequencySetter/" + link_name).c_str(), &UvLed::callbackSetFrequency, this);
   }
 
@@ -106,7 +111,7 @@ public:
     ledMsg.isOff.data      = false;
     std::cout << "Sending message" << std::endl;
     ledPub.publish(ledMsg);
-    pub_thread = std::thread(&UvLed::PubThread, this);
+    /* pub_thread = std::thread(&UvLed::PubThread, this); */
   }
   // Called by the world update start event
 public:
@@ -115,41 +120,45 @@ public:
 
   // Pointer to the sensor
 private:
-  bool callbackSetFrequency(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res) {
+  bool callbackSetFrequency(mrs_msgs::Float64Srv::Request &req, mrs_msgs::Float64Srv::Response &res) {
     f                     = req.value;
-    
-    if(f==INT_MAX) {
-      ledMsg.frequency.data = std::numeric_limits<_Float64>::max();
-    }
-    else{
-      ledMsg.frequency.data = f;
-    }
-    ledMsg.isOff.data     = false;
-    ledPub.publish(ledMsg);
-
-    // std::cout << link_name << " " << f << std::endl;
-
-    res.message = "Setting the frequency to ";
+    publishData();
+    res.message = "Setting the signal frequency to ";
     res.message += std::to_string(f);
-    // ROS_INFO_STREAM(res.message);
+    ROS_INFO_STREAM(res.message);
     res.success = true;
     return true;
   }
 
-  void PubThread() {
-    ros::Rate r(2);
-    while (true) {
+  bool callbackSetSignal(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res) {
+    ID                     = req.value;
+    publishData();
+    res.message = "Setting the signal ID to ";
+    res.message += std::to_string(ID);
+    ROS_INFO_STREAM(res.message);
+    res.success = true;
+    return true;
+  }
 
-      if (!true) {
+  /* void PubThread() { */
+  /*   ros::Rate r(2); */
+  /*   while (true) { */
+
+  /*     if (!true) { */
+  /*       publishData() */
+  /*       // std::cout << "Publishing base frequency, UVDAR in localization mode" << std::endl; */
+  /*     } else { */
+  /*       // std::cout << "Ignoring base frequency, UVDAR in RXTX mode" << link_name << std::endl; */
+  /*     } */
+  /*     r.sleep(); */
+  /*   } */
+  /* } */
+
+  void publishData(){
         ledMsg.frequency.data = f;
+        ledMsg.ID.data = ID;
         ledMsg.isOff.data     = false;
         ledPub.publish(ledMsg);
-        // std::cout << "Publishing base frequency, UVDAR in localization mode" << std::endl;
-      } else {
-        // std::cout << "Ignoring base frequency, UVDAR in RXTX mode" << link_name << std::endl;
-      }
-      r.sleep();
-    }
   }
 
 private:
