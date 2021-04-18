@@ -427,6 +427,9 @@ void ledInfoCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>
     else {
       std::cerr << "[UVDAR camera]: Invalid sequence ID: " << led_info->ID.data << std::endl;
     }
+
+    _leds_by_name_.at(link_name)->set_active(led_info->active.data);
+
 }
 //}
 

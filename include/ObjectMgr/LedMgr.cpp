@@ -56,6 +56,10 @@ void LedMgr::update_message(std::vector<bool> i_message, double i_bit_rate){
 void LedMgr::set_mode(int i_mode){
   mode = i_mode;
 }
+
+void LedMgr::set_active(bool i_active){
+  active = i_active;
+}
 /* void LedMgr::update_all(const std::string& link_name, const geometry_msgs::Pose& i_pose, double i_frequency=0.0, std::vector<bool> i_sequence={}) { */
 /*   if (!m_pose_initialized) */
 /*     return; */
@@ -85,6 +89,9 @@ char toHex(int input){
 
 bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
   if (!m_pose_initialized)
+    return false;
+
+  if (!active)
     return false;
 
   if (mode == -2){ //deprecated
