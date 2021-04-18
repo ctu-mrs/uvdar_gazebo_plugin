@@ -10,6 +10,8 @@
 #include <mutex>
 #include <thread>
 #include <uvdar_gazebo_plugin/LedInfo.h>
+#include <uvdar_gazebo_plugin/LedMessage.h>
+#include <uvdar_core/SetLedMessage.h>
 #include <mrs_msgs/SetInt.h>
 #include <mrs_msgs/Float64Srv.h>
 
@@ -22,13 +24,16 @@ private:
   int             n;
   /* double          updatePeriod; */
   /* float           f; */
-  bool            leds_info = false;
 
   double          f;
+
+  int             mode = 0;
   int             ID;
 
+
   /* transport::PublisherPtr posePub; */
-  ros::Publisher ledPub;
+  ros::Publisher ledInfoPub;
+  ros::Publisher ledMessagePub;
   /* transport::PublisherPtr statePub ; */
   gazebo::physics::WorldPtr world;
   physics::EntityPtr        parent;
@@ -36,12 +41,15 @@ private:
   sensors::SensorPtr        sensor;
   /* ignition::math::Pose3d                pose; */
   /* msgs::Pose                poseMsg; */
-  uvdar_gazebo_plugin::LedInfo ledMsg;
+  uvdar_gazebo_plugin::LedInfo      ledInfo;
+  uvdar_gazebo_plugin::LedMessage   ledMsg;
   std::mutex                   pubMutex;
   std::string                  link_name;
 
-  ros::ServiceServer signal_setter_;
+  ros::ServiceServer sequence_setter_;
   ros::ServiceServer frequency_setter_;
+  ros::ServiceServer mode_setter_;
+  ros::ServiceServer message_sender_;
 
 public:
   void Load(sensors::SensorPtr _sensor, sdf::ElementPtr _sdf) {
@@ -55,7 +63,8 @@ public:
 
     if (_sdf->HasElement("link_name")) {
       link_name = _sdf->GetElement("link_name")->Get<std::string>();
-      ledPub    = nh.advertise<uvdar_gazebo_plugin::LedInfo>("/gazebo/ledProperties/" + link_name, 1, true);
+      ledInfoPub    = nh.advertise<uvdar_gazebo_plugin::LedInfo>("/gazebo/ledProperties/" + link_name, 1, true);
+      ledMessagePub    = nh.advertise<uvdar_gazebo_plugin::LedMessage>("/gazebo/ledMessage/" + link_name, 1, true);
     } else {
       std::cout << "Could not find the link name of the LED" << std::endl;
     }
@@ -98,19 +107,18 @@ public:
 
     char poseTopicName[30];
     std::sprintf(poseTopicName, "~/uvleds/pose");
-    signal_setter_ = nh.advertiseService(("/gazebo/ledSignalSetter/" + link_name).c_str(), &UvLed::callbackSetSignal, this);
+    sequence_setter_ = nh.advertiseService(("/gazebo/ledSignalSetter/" + link_name).c_str(), &UvLed::callbackSetSequence, this);
     frequency_setter_ = nh.advertiseService(("/gazebo/ledFrequencySetter/" + link_name).c_str(), &UvLed::callbackSetFrequency, this);
+    mode_setter_ = nh.advertiseService(("/gazebo/ledModeSetter/" + link_name).c_str(), &UvLed::callbackSetMode, this);
+    message_sender_ = nh.advertiseService(("/gazebo/ledMessageSender/" + link_name).c_str(), &UvLed::callbackSendMessage, this);
   }
 
 public:
   void Init() {
     std::cout << "Initializing UV LED " << n << std::endl;
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
-    ledMsg.frequency.data  = f;
-    ledMsg.ID.data  = ID;
-    ledMsg.isOff.data      = false;
-    std::cout << "Sending message" << std::endl;
-    ledPub.publish(ledMsg);
+    std::cout << "Sending LED data" << std::endl;
+    publishData();
     /* pub_thread = std::thread(&UvLed::PubThread, this); */
   }
   // Called by the world update start event
@@ -130,7 +138,7 @@ private:
     return true;
   }
 
-  bool callbackSetSignal(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res) {
+  bool callbackSetSequence(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res) {
     ID                     = req.value;
     publishData();
     res.message = "Setting the signal ID to ";
@@ -138,6 +146,34 @@ private:
     ROS_INFO_STREAM(res.message);
     res.success = true;
     return true;
+  }
+
+  bool callbackSetMode(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res) {
+    mode                     = req.value;
+    publishData();
+    res.message = "Setting the mode to ";
+    res.message += std::to_string(mode);
+    ROS_INFO_STREAM(res.message);
+    res.success = true;
+    return true;
+  }
+
+  bool callbackSendMessage(uvdar_core::SetLedMessage::Request &req, uvdar_core::SetLedMessage::Response &res) {
+    if (mode == 1){
+      res.message = "Sending message";
+
+      ledMsg.data_frame = req.data_frame;
+      ledMessagePub.publish(ledMsg);
+
+
+      res.success = true;
+      return true;
+    }
+    else {
+      res.message = "Will not send message - the appropriate mode is not set!";
+      res.success = false;
+      return true;
+    }
   }
 
   /* void PubThread() { */
@@ -155,10 +191,10 @@ private:
   /* } */
 
   void publishData(){
-        ledMsg.frequency.data = f;
-        ledMsg.ID.data = ID;
-        ledMsg.isOff.data     = false;
-        ledPub.publish(ledMsg);
+        ledInfo.frequency.data = f;
+        ledInfo.ID.data = ID;
+        ledInfo.isOff.data     = false;
+        ledInfoPub.publish(ledInfo);
   }
 
 private:

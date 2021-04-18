@@ -27,6 +27,7 @@
 #include <ObjectMgr/LedMgr.h>
 #include <std_msgs/Float64.h>
 #include <uvdar_gazebo_plugin/LedInfo.h>
+#include <uvdar_gazebo_plugin/LedMessage.h>
 #include <sensor_msgs/PointCloud.h>
 /* #define exprate 0.001 */
 
@@ -78,6 +79,8 @@ private:
   std::thread                      link_callback_thread;
   ros::NodeHandle                  nh_;
   std::vector<ros::Subscriber> ledInfoSubscribers;
+  std::vector<ros::Subscriber> ledMessageSubscribers;
+  std::vector<ros::Subscriber> ledModeSubscribers;
 
   std::string filename;
 
@@ -399,7 +402,9 @@ void linkCallback(const gazebo_msgs::LinkStatesConstPtr &link_states)
         std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh_, cur_name);
         _leds_by_name_.insert({cur_link_name, led});
         /* std::cout << "Subscribing to LED info of " << "/gazebo/ledProperties/"+cur_link_name << std::endl; */
-        ledInfoSubscribers.push_back(nh_.subscribe("/gazebo/ledProperties/"+cur_link_name, 1, &UvCam::ledCallback,this));
+        ledInfoSubscribers.push_back(nh_.subscribe("/gazebo/ledProperties/"+cur_link_name, 1, &UvCam::ledInfoCallback,this));
+        ledMessageSubscribers.push_back(nh_.subscribe("/gazebo/ledMessage/"+cur_link_name, 1, &UvCam::ledMessageCallback,this));
+        ledModeSubscribers.push_back(nh_.subscribe("/gazebo/ledMode/"+cur_link_name, 1, &UvCam::ledModeCallback,this));
       }
     }
   }
@@ -407,8 +412,8 @@ void linkCallback(const gazebo_msgs::LinkStatesConstPtr &link_states)
 }
 //}
 
-/* void ledCallback //{ */
-void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& event){
+/* void ledInfoCallback //{ */
+void ledInfoCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& event){
   boost::mutex::scoped_lock lock(mtx_leds);
   /* std::cout << "Getting message" << std::endl; */
     ros::M_string mhdr = event.getConnectionHeader();
@@ -416,13 +421,42 @@ void ledCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& ev
     std::string link_name = topic.substr(std::string("/gazebo/ledProperties/").length());
     const uvdar_gazebo_plugin::LedInfoConstPtr& led_info = event.getMessage();
     /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
-    /* _leds_by_name_.at(link_name)->update_frequency(led_info->frequency.data); */
     if ((led_info->ID.data >= 0) && (led_info->ID.data < (int)(sequences_.size()))){
       _leds_by_name_.at(link_name)->update_sequence(sequences_[led_info->ID.data],led_info->frequency.data);
     }
     else {
       std::cerr << "[UVDAR camera]: Invalid sequence ID: " << led_info->ID.data << std::endl;
     }
+}
+//}
+
+/* void ledMessageCallback //{ */
+void ledMessageCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedMessage const>& event){
+  boost::mutex::scoped_lock lock(mtx_leds);
+  /* std::cout << "Getting message" << std::endl; */
+    ros::M_string mhdr = event.getConnectionHeader();
+    std::string topic = mhdr["topic"];
+    std::string link_name = topic.substr(std::string("/gazebo/ledMessage/").length());
+    const uvdar_gazebo_plugin::LedMessageConstPtr& led_message = event.getMessage();
+    /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
+    std::vector<bool> data_frame;
+    for (auto d : led_message->data_frame){
+      data_frame.push_back(d>0);
+    }
+    _leds_by_name_.at(link_name)->update_message(data_frame);
+}
+//}
+//
+/* void ledModeCallback //{ */
+void ledModeCallback(const ros::MessageEvent<std_msgs::Int32 const>& event){
+  boost::mutex::scoped_lock lock(mtx_leds);
+  /* std::cout << "Getting message" << std::endl; */
+    ros::M_string mhdr = event.getConnectionHeader();
+    std::string topic = mhdr["topic"];
+    std::string link_name = topic.substr(std::string("/gazebo/ledMode/").length());
+    auto led_mode = event.getMessage();
+    /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
+    _leds_by_name_.at(link_name)->set_mode(led_mode->data);
 }
 //}
 

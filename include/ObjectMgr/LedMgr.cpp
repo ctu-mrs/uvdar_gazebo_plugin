@@ -10,7 +10,7 @@ LedMgr::LedMgr(
 
   diag_signal[DIAG_SIGNAL_LENGTH] = '\0';
   diag_order[DIAG_SIGNAL_LENGTH] = '\0';
-  mode = 1; //set special sequence mode
+  mode = 0; //set special sequence mode
   return;
 }
 
@@ -18,13 +18,13 @@ void LedMgr::update_link_pose(const std::string& link_name, const geometry_msgs:
   ObjectMgr::update_link_pose(link_name, i_pose);
 }
 
-void LedMgr::update_frequency(double i_frequency){ /* std::cout << "setting frequency to " << i_frequency << std::endl; */
-  /* std::cout << "Updating frequency to " << i_frequency << std::endl; */
-  f = i_frequency;
-  T  = 1.0 / f;
-  Th = T / 2.0;
-  frequency_initialized = true;
-}
+/* void LedMgr::update_frequency(double i_frequency){ /1* std::cout << "setting frequency to " << i_frequency << std::endl; *1/ */
+/*   /1* std::cout << "Updating frequency to " << i_frequency << std::endl; *1/ */
+/*   f = i_frequency; */
+/*   T  = 1.0 / f; */
+/*   Th = T / 2.0; */
+/*   frequency_initialized = true; */
+/* } */
 
 void LedMgr::update_sequence(std::vector<bool> i_sequence, double i_bit_rate){ /* std::cout << "setting frequency to " << i_frequency << std::endl; */
   /* std::cout << "Updating frequency to " << i_frequency << std::endl; */
@@ -41,6 +41,21 @@ void LedMgr::update_sequence(std::vector<bool> i_sequence, double i_bit_rate){ /
   sequence_initialized = true;
 }
 
+void LedMgr::update_message(std::vector<bool> i_message, double i_bit_rate){
+  if (i_bit_rate > 0){
+    bit_rate = i_bit_rate;
+  }
+  else {
+    bit_rate = 60;
+  }
+  message = i_message;
+  mes_duration = (double)(message.size())/bit_rate;
+  message_initialized = true;
+}
+
+void LedMgr::set_mode(int i_mode){
+  mode = i_mode;
+}
 /* void LedMgr::update_all(const std::string& link_name, const geometry_msgs::Pose& i_pose, double i_frequency=0.0, std::vector<bool> i_sequence={}) { */
 /*   if (!m_pose_initialized) */
 /*     return; */
@@ -72,7 +87,7 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
   if (!m_pose_initialized)
     return false;
 
-  if (mode == 0){
+  if (mode == -2){ //deprecated
     if (!frequency_initialized)
       return false;
 
@@ -86,7 +101,7 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
       return true;
     }
   }
-  else if (mode == 1){
+  else if (mode == 0){
     dsi++;
     if (dsi>=DIAG_SIGNAL_LENGTH){
       dsi = 0;
@@ -109,6 +124,21 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
     else{
       diag_signal[dsi] = '0';
       diag_order[dsi] = toHex(seq_index);
+      return false;
+    }
+  }
+  else if (mode == 1){
+    if (!message_initialized){
+      return false;
+    }
+
+    int mes_index = (int)(fmod(nowTime, mes_duration)*bit_rate);
+    mes_index = std::min((int)(message.size())-1,mes_index);//sanitization
+    if (message[mes_index]){
+      output = m_pose;
+      return true;
+    }
+    else{
       return false;
     }
   }

@@ -15,15 +15,18 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   message_generation
   mrs_msgs
+  uvdar_core
 )
 
 add_message_files(DIRECTORY msg FILES
   LedInfo.msg
+  LedMessage.msg
   )
 
 generate_messages(
   DEPENDENCIES
   std_msgs
+  uvdar_core
   )
 
 catkin_package(
