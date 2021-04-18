@@ -422,10 +422,11 @@ void ledInfoCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>
     const uvdar_gazebo_plugin::LedInfoConstPtr& led_info = event.getMessage();
     /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
     if ((led_info->ID.data >= 0) && (led_info->ID.data < (int)(sequences_.size()))){
-      _leds_by_name_.at(link_name)->update_sequence(sequences_[led_info->ID.data],led_info->frequency.data);
+      _leds_by_name_.at(link_name)->update_sequence(sequences_[led_info->ID.data],led_info->seq_bitrate.data);
     }
     else {
       std::cerr << "[UVDAR camera]: Invalid sequence ID: " << led_info->ID.data << std::endl;
+      _leds_by_name_.at(link_name)->update_bitrate(led_info->seq_bitrate.data, led_info->mes_bitrate.data);
     }
 
     _leds_by_name_.at(link_name)->set_active(led_info->active.data);

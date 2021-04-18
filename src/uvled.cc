@@ -26,7 +26,8 @@ private:
   /* double          updatePeriod; */
   /* float           f; */
 
-  double          f;
+  double          fs;
+  double          fm;
 
   int             mode = 0;
   int             ID;
@@ -83,11 +84,13 @@ public:
     }
 
     if (_sdf->HasElement("frequency")) {
-      f = _sdf->GetElement("frequency")->Get<double>();
-      std::cout << "LED frequency is " << f << "Hz" << std::endl;
+      fs = _sdf->GetElement("frequency")->Get<double>();
+      fm = fs;
+      std::cout << "Initial LED bitrate is " << fs << "Hz" << std::endl;
     } else {
-      std::cout << "LED frequency defaulting to 60Hz." << std::endl;
-      f = 60.0;  // camera framerate
+      std::cout << "Initial LED bitrate defaulting to 60Hz." << std::endl;
+      fs = 60.0;  // camera framerate
+      fm = fs;
     }
 
     if (_sdf->HasElement("number")) {
@@ -135,10 +138,18 @@ public:
   // Pointer to the sensor
 private:
   bool callbackSetFrequency(mrs_msgs::Float64Srv::Request &req, mrs_msgs::Float64Srv::Response &res) {
-    f                     = req.value;
-    publishData();
-    res.message = "Setting the signal frequency to ";
-    res.message += std::to_string(f);
+    if (mode == 0){
+      fs                     = req.value;
+      publishData();
+      res.message = "Setting the sequence bitrate to ";
+      res.message += std::to_string(fs);
+    }
+    else if (mode == 0){
+      fm                     = req.value;
+      publishData();
+      res.message = "Setting the message bitrate to ";
+      res.message += std::to_string(fm);
+    }
     ROS_INFO_STREAM(res.message);
     res.success = true;
     return true;
@@ -174,6 +185,15 @@ private:
     if (mode == 1){
       res.message = "Sending message";
 
+      /* std::string message_text; */
+      /* for (auto b : req.data_frame){ */
+      /*   if (b == 0) */
+      /*     message_text += '0'; */
+      /*   else */ 
+      /*     message_text += '1'; */
+      /* } */
+      /* ROS_INFO_STREAM(res.message << " :" << message_text); */
+
       led_msg.data_frame = req.data_frame;
       led_message_pub.publish(led_msg);
 
@@ -183,6 +203,7 @@ private:
     }
     else {
       res.message = "Will not send message - the appropriate mode is not set!";
+      ROS_INFO_STREAM(res.message);
       res.success = false;
       return true;
     }
@@ -215,7 +236,8 @@ private:
   /* } */
 
   void publishData(){
-        led_info.frequency.data = f;
+        led_info.seq_bitrate.data = fs;
+        led_info.mes_bitrate.data = fm;
         led_info.ID.data = ID;
         led_info.active.data = active;
         led_info_pub.publish(led_info);

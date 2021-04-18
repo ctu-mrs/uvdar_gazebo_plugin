@@ -35,21 +35,18 @@ void LedMgr::update_sequence(std::vector<bool> i_sequence, double i_bit_rate){ /
     diag_seq += (s?'1':'0');
   }
 
-  bit_rate = i_bit_rate;
-  seq_duration = (double)(sequence.size())/bit_rate;
+  update_timing(i_bit_rate,-1);
   /* time_scaler = (double)(sequence.size())/seq_duration; */
   sequence_initialized = true;
 }
 
+void LedMgr::update_bitrate(double i_seq_bit_rate, double i_mes_bit_rate){ /* std::cout << "setting frequency to " << i_frequency << std::endl; */
+  update_timing(i_seq_bit_rate,i_mes_bit_rate);
+}
+
 void LedMgr::update_message(std::vector<bool> i_message, double i_bit_rate){
-  if (i_bit_rate > 0){
-    bit_rate = i_bit_rate;
-  }
-  else {
-    bit_rate = 60;
-  }
+  update_timing(-1,i_bit_rate);
   message = i_message;
-  mes_duration = (double)(message.size())/bit_rate;
   message_initialized = true;
 }
 
@@ -72,6 +69,17 @@ void LedMgr::set_active(bool i_active){
 /*     update_sequence(i_sequence); */
 /*   } */
 /* } */
+
+void LedMgr::update_timing(int i_seq_bit_rate, int i_mes_bit_rate){
+  if (i_seq_bit_rate > 0){
+    seq_bit_rate = i_seq_bit_rate;
+    seq_duration = (double)(sequence.size())/seq_bit_rate;
+  }
+  if (i_mes_bit_rate > 0){
+    mes_bit_rate = i_mes_bit_rate;
+    mes_duration = (double)(message.size())/mes_bit_rate;
+  }
+}
 
 char toHex(int input){
   if (input < 16){
@@ -120,7 +128,7 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
       return false;
     }
 
-    int seq_index = (int)(fmod(nowTime, seq_duration)*bit_rate);
+    int seq_index = (int)(fmod(nowTime, seq_duration)*mes_bit_rate);
     seq_index = std::min((int)(sequence.size())-1,seq_index);//sanitization
     if (sequence[seq_index]){
       output = m_pose;
@@ -139,7 +147,7 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
       return false;
     }
 
-    int mes_index = (int)(fmod(nowTime, mes_duration)*bit_rate);
+    int mes_index = (int)(fmod(nowTime, mes_duration)*mes_bit_rate);
     mes_index = std::min((int)(message.size())-1,mes_index);//sanitization
     if (message[mes_index]){
       output = m_pose;
