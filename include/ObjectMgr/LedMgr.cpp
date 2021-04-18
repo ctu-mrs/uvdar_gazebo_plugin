@@ -26,8 +26,7 @@ void LedMgr::update_link_pose(const std::string& link_name, const geometry_msgs:
 /*   frequency_initialized = true; */
 /* } */
 
-void LedMgr::update_sequence(std::vector<bool> i_sequence, double i_bit_rate){ /* std::cout << "setting frequency to " << i_frequency << std::endl; */
-  /* std::cout << "Updating frequency to " << i_frequency << std::endl; */
+void LedMgr::update_data(std::vector<bool> i_sequence, double i_seq_bit_rate, double i_mes_bit_rate){
   sequence = i_sequence;
   /* if (diag_seq.length() < (int)(sequence.size())) */
   diag_seq = "";
@@ -35,19 +34,20 @@ void LedMgr::update_sequence(std::vector<bool> i_sequence, double i_bit_rate){ /
     diag_seq += (s?'1':'0');
   }
 
-  update_timing(i_bit_rate,-1);
+  update_timing(i_seq_bit_rate,i_mes_bit_rate);
   /* time_scaler = (double)(sequence.size())/seq_duration; */
   sequence_initialized = true;
 }
 
-void LedMgr::update_bitrate(double i_seq_bit_rate, double i_mes_bit_rate){ /* std::cout << "setting frequency to " << i_frequency << std::endl; */
+void LedMgr::update_bitrate(double i_seq_bit_rate, double i_mes_bit_rate){
   update_timing(i_seq_bit_rate,i_mes_bit_rate);
 }
 
 void LedMgr::update_message(std::vector<bool> i_message, double i_bit_rate){
-  update_timing(-1,i_bit_rate);
   message = i_message;
-  message_initialized = true;
+  update_timing(-1,i_bit_rate);
+  if (message.size() > 0 )
+    message_initialized = true;
 }
 
 void LedMgr::set_mode(int i_mode){
@@ -70,15 +70,19 @@ void LedMgr::set_active(bool i_active){
 /*   } */
 /* } */
 
-void LedMgr::update_timing(int i_seq_bit_rate, int i_mes_bit_rate){
+void LedMgr::update_timing(double i_seq_bit_rate, double i_mes_bit_rate){
   if (i_seq_bit_rate > 0){
     seq_bit_rate = i_seq_bit_rate;
-    seq_duration = (double)(sequence.size())/seq_bit_rate;
   }
+  seq_duration = (double)(sequence.size())/seq_bit_rate;
+ 
   if (i_mes_bit_rate > 0){
     mes_bit_rate = i_mes_bit_rate;
-    mes_duration = (double)(message.size())/mes_bit_rate;
   }
+  mes_duration = (double)(message.size())/mes_bit_rate;
+  /* std::cout << "updated: mes_bit_rate:" << mes_bit_rate << std::endl; */
+  /* std::cout << "updated: message size:" << message.size() << std::endl; */
+  /* std::cout << "updated: mes_duration:" << mes_duration << std::endl; */
 }
 
 char toHex(int input){
@@ -128,7 +132,7 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
       return false;
     }
 
-    int seq_index = (int)(fmod(nowTime, seq_duration)*mes_bit_rate);
+    int seq_index = (int)(fmod(nowTime, seq_duration)*seq_bit_rate);
     seq_index = std::min((int)(sequence.size())-1,seq_index);//sanitization
     if (sequence[seq_index]){
       output = m_pose;
@@ -143,17 +147,39 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
     }
   }
   else if (mode == 1){
+    dsi++;
+    if (dsi>=DIAG_SIGNAL_LENGTH){
+      dsi = 0;
+      /* std::cout << "Signal from LED s:" << diag_seq << " was:\n" << diag_signal << "\n" << diag_order << std::endl; */
+    }
     if (!message_initialized){
+      diag_signal[dsi] = '0';
+      diag_order[dsi] = '0';
+      return false;
+    }
+    if (message.size() < 1){
       return false;
     }
 
+      /* std::cout << "mes_bit_rate:" << mes_bit_rate << std::endl; */
+      /* std::cout << "message size:" << message.size() << std::endl; */
+      /* std::cout << "mes_duration:" << mes_duration << std::endl; */
     int mes_index = (int)(fmod(nowTime, mes_duration)*mes_bit_rate);
+    if (mes_index < 0){
+      std::cout << "message index is less than zero!:" << mes_index<< std::endl;
+      return false;
+    }
+      /* std::cout << "message index:" << mes_index<< std::endl; */
     mes_index = std::min((int)(message.size())-1,mes_index);//sanitization
     if (message[mes_index]){
       output = m_pose;
+      diag_signal[dsi] = '1';
+      diag_order[dsi] = toHex(mes_index);
       return true;
     }
     else{
+      diag_signal[dsi] = '0';
+      diag_order[dsi] = toHex(mes_index);
       return false;
     }
   }

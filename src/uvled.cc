@@ -71,6 +71,7 @@ public:
       link_name = _sdf->GetElement("link_name")->Get<std::string>();
       led_info_pub    = nh.advertise<uvdar_gazebo_plugin::LedInfo>("/gazebo/ledProperties/" + link_name, 1, true);
       led_message_pub    = nh.advertise<uvdar_gazebo_plugin::LedMessage>("/gazebo/ledMessage/" + link_name, 1, true);
+      led_mode_pub = nh.advertise<std_msgs::Int32>("/gazebo/ledMode/" + link_name, 1, true);
     } else {
       std::cout << "Could not find the link name of the LED" << std::endl;
     }
@@ -144,7 +145,7 @@ private:
       res.message = "Setting the sequence bitrate to ";
       res.message += std::to_string(fs);
     }
-    else if (mode == 0){
+    else if (mode == 1){
       fm                     = req.value;
       publishData();
       res.message = "Setting the message bitrate to ";
@@ -171,9 +172,7 @@ private:
     std_msgs::Int32 mode_msg;
     mode_msg.data = mode;
     led_mode_pub.publish(mode);
-    if (mode == 0){
-      publishData();
-    }
+    publishData();
     res.message = "Setting the mode to ";
     res.message += std::to_string(mode);
     ROS_INFO_STREAM(res.message);

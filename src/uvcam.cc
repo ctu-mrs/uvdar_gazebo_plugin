@@ -143,10 +143,10 @@ public:
     /* id = 1; */
     if (_sdf->HasElement("framerate")) {
       f = _sdf->GetElement("framerate")->Get< double >();
-      std::cout << "LED framerate is " << f << "Hz" << std::endl;
+      std::cout << "Camera framerate is " << f << "Hz" << std::endl;
     } else {
-      std::cout << "LED framerate defaulting to 70Hz." << std::endl;
-      f = 70.0;  // camera framerat
+      std::cout << "Camera framerate defaulting to 60Hz." << std::endl;
+      f = 60.0;  // camera framerat
     }
 
     T = 1.0/f;
@@ -422,11 +422,10 @@ void ledInfoCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>
     const uvdar_gazebo_plugin::LedInfoConstPtr& led_info = event.getMessage();
     /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
     if ((led_info->ID.data >= 0) && (led_info->ID.data < (int)(sequences_.size()))){
-      _leds_by_name_.at(link_name)->update_sequence(sequences_[led_info->ID.data],led_info->seq_bitrate.data);
+      _leds_by_name_.at(link_name)->update_data(sequences_[led_info->ID.data],led_info->seq_bitrate.data, led_info->mes_bitrate.data);
     }
     else {
       std::cerr << "[UVDAR camera]: Invalid sequence ID: " << led_info->ID.data << std::endl;
-      _leds_by_name_.at(link_name)->update_bitrate(led_info->seq_bitrate.data, led_info->mes_bitrate.data);
     }
 
     _leds_by_name_.at(link_name)->set_active(led_info->active.data);
@@ -442,12 +441,16 @@ void ledMessageCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedMessage 
     std::string topic = mhdr["topic"];
     std::string link_name = topic.substr(std::string("/gazebo/ledMessage/").length());
     const uvdar_gazebo_plugin::LedMessageConstPtr& led_message = event.getMessage();
-    /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
-    std::vector<bool> data_frame;
-    for (auto d : led_message->data_frame){
-      data_frame.push_back(d>0);
+    /* std::cout << "UV CAM: receiving message of length " << led_message->data_frame.size() << std::endl; */
+
+    if (led_message->data_frame.size() >0){
+      std::vector<bool> data_frame;
+      for (auto d : led_message->data_frame){
+        data_frame.push_back(d>0);
+      }
+      /* std::cout << "UV CAM: will transmit with length of  " << data_frame.size() << std::endl; */
+      _leds_by_name_.at(link_name)->update_message(data_frame);
     }
-    _leds_by_name_.at(link_name)->update_message(data_frame);
 }
 //}
 //
@@ -459,7 +462,7 @@ void ledModeCallback(const ros::MessageEvent<std_msgs::Int32 const>& event){
     std::string topic = mhdr["topic"];
     std::string link_name = topic.substr(std::string("/gazebo/ledMode/").length());
     auto led_mode = event.getMessage();
-    /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
+    /* std::cout << "UV CAM: receiving mode of " << led_mode->data << std::endl; */
     _leds_by_name_.at(link_name)->set_mode(led_mode->data);
 }
 //}
