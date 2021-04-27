@@ -171,7 +171,7 @@ private:
 
     std_msgs::Int32 mode_msg;
     mode_msg.data = mode;
-    led_mode_pub.publish(mode);
+    led_mode_pub.publish(mode_msg);
     publishData();
     res.message = "Setting the mode to ";
     res.message += std::to_string(mode);
