@@ -31,7 +31,7 @@ cd uav_core
 
 mkdir -p ~/catkin_ws/src
 cd ~/catkin_ws/src
-ln -s ~/ua_core
+ln -s ~/uav_core
 ln -s ~/simulation
 ln -s ~/uvdar_core
 ln -s "$MY_PATH" uvdar_gazebo_plugin
