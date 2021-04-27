@@ -26,8 +26,6 @@ cd simulation
 echo "clone uvdar_core"
 cd
 git clone https://github.com/ctu-mrs/uvdar_core.git
-cd uav_core
-./installation/install.sh
 
 mkdir -p ~/catkin_ws/src
 cd ~/catkin_ws/src
