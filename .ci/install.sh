@@ -23,10 +23,15 @@ git clone https://github.com/ctu-mrs/simulation.git
 cd simulation
 ./installation/install.sh
 
+echo "clone uvdar_core"
+cd
+git clone https://github.com/ctu-mrs/uvdar_core.git
+
 mkdir -p ~/catkin_ws/src
 cd ~/catkin_ws/src
 ln -s ~/uav_core
 ln -s ~/simulation
+ln -s ~/uvdar_core
 ln -s "$MY_PATH" uvdar_gazebo_plugin
 source /opt/ros/$ROS_DISTRO/setup.bash
 cd ~/catkin_ws
