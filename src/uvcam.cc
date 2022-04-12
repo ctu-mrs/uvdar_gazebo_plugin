@@ -4,6 +4,7 @@
 #include <ros/callback_queue.h>
 #include <ros/subscribe_options.h>
 #include <ros/package.h>
+#include <ros/master.h>
 #include <undistortFunctions/ocam_functions.h>
 #include <functional>
 #include <gazebo/plugins/CameraPlugin.hh>
@@ -27,15 +28,26 @@
 #include <ObjectMgr/LedMgr.h>
 #include <std_msgs/Float64.h>
 #include <uvdar_gazebo_plugin/LedInfo.h>
+#include <uvdar_gazebo_plugin/CamInfo.h>
 #include <uvdar_gazebo_plugin/LedMessage.h>
 #include <sensor_msgs/PointCloud.h>
 /* #define exprate 0.001 */
+
+#define CAM_EXISTENCE_HEADER "/gazebo/uvcam_"
+#define CAM_YIELD_TOPIC "/gazebo/uvcam_yield"
 
 #define index2d(X, Y) (oc_model.width * (Y) + (X))
 
 /* using namespace ignition; */
 namespace gazebo
 {
+  struct CameraProps {
+      std::string name;
+      std::string scoped_name;
+      double f;
+      bool occlusions;
+  };
+
 class UvCam : public SensorPlugin {
 private:
   /* variables //{ */
@@ -49,7 +61,10 @@ private:
   transport::SubscriberPtr  poseSub;
   transport::SubscriberPtr  stateSub;
   ros::Subscriber           linkSub;
-  ignition::math::Pose3d                pose;
+
+  ros::Subscriber           yield_sub;
+
+  std::vector<ignition::math::Pose3d> cam_poses;
   gazebo::physics::WorldPtr world;
   gazebo::physics::PhysicsEnginePtr pengine;
   physics::RayShapePtr curr_ray;
@@ -86,7 +101,7 @@ private:
 
   std::unordered_map<std::string, std::shared_ptr<LedMgr> > _leds_by_name_;
 
-  sensors::SensorPtr sensor;
+  std::vector<physics::EntityPtr> cameras;
   // Pointer to the update event connection
   event::ConnectionPtr updateConnection;
 
@@ -95,6 +110,8 @@ private:
   ros::CallbackQueue link_queue_;
 
   ros::Publisher virtual_points_publisher;
+  ros::Publisher yield_publisher;
+  bool yielded_rendering = false;
 
   rendering::ScenePtr world_scene_;
   rendering::VisualPtr visual_current_;
@@ -119,7 +136,9 @@ public:
     /* CameraPlugin::Load(_parent, _sdf); */
     // copying from CameraPlugin into GazeboRosCameraUtils
     // Store the pointer to the model
-    this->sensor           = _parent;
+    sensors::SensorPtr sensor;
+    sensor           = _parent;
+
 
     /* this->parentSensor->SetActive(false); */
     world      = physics::get_world("default");
@@ -129,8 +148,8 @@ public:
         pengine->CreateShape("ray", physics::CollisionPtr()));
     std::string parentName = _parent->ParentName();
     parent                 = world->EntityByName(parentName);
-    std::cout << "Camera parent name: " << this->sensor->ScopedName() << std::endl;
-    ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine, this->sensor->ScopedName());
+    std::cout << "Camera parent name: " << sensor->ScopedName() << std::endl;
+    ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine, sensor->ScopedName());
 
     if (_sdf->HasElement("calibration_file")) {
       filename = _sdf->GetElement("calibration_file")->Get< std::string >();
@@ -190,15 +209,32 @@ public:
 
     char *dummy = NULL;
     int   zero  = 0;
-    ros::init(zero, &dummy, "uvdar_bluefox_emulator");
     std::string publish_topic;
     if (_sdf->HasElement("camera_publish_topic")) {
       publish_topic = _sdf->GetElement("camera_publish_topic")->Get<std::string>();
     } else {
       publish_topic = parentName.substr(0, parentName.find(":")) + "/uvdar_bluefox/image_raw";
     }
+
+    auto preferredCamera = findExistingEquivalentCamera();
+    if (preferredCamera) {
+      std::cout << "UVCAM " << sensor->Name() << " will yield rendering to " << preferredCamera.value().name << "." << std::endl;
+      if (!yieldRendering()){
+      std::cout << "UVCAM " << sensor->Name() << " failed to yield rendering!" << std::endl;
+      }
+    } else{
+      /* nh_.setParam(CAM_EXISTENCE_HEADER+sensor->Name()+"/name", sensor->Name()); */
+      nh_.setParam(CAM_EXISTENCE_HEADER+sensor->Name()+"/scoped_name", sensor->ScopedName());
+      nh_.setParam(CAM_EXISTENCE_HEADER+sensor->Name()+"/f", f);
+      nh_.setParam(CAM_EXISTENCE_HEADER+sensor->Name()+"/occlusions", _use_occlusions_);
+      cameras.push_back(world->EntityByName(_parent->Name())n;
+    }
+
+    ros::init(zero, &dummy, "uvdar_bluefox_emulator");
+
     std::cout << "Publishing UV Camera data to topic: /gazebo" << publish_topic << "\"" << std::endl;
 
+    yield_sub = nh_.subscribe(CAM_YIELD_TOPIC, 10, &UvCam::yieldCallback, this);
     virtual_points_publisher = nh_.advertise<sensor_msgs::PointCloud>("/gazebo"+publish_topic, 1);
 
   }
@@ -206,6 +242,10 @@ public:
 
   /* Init //{ */
   void Init() {
+    if (yielded_rendering){
+      return;
+    }
+
     /* for (int i    = 0; i++; i < 20) */
     /* ledState[i] = false; */
 
@@ -296,7 +336,9 @@ public:
     /* ros::spinOnce(); */
     /* std::cout << "sending" << std::endl; */
     // Apply a small linear velocity to the model.
-    pose = sensor->Pose() + parent->WorldPose();
+    for (auto &c : cameras){
+      cam_poses = c->WorldPose();
+    }
 
     
     /* occlusion_initialized_ = true; */
@@ -466,6 +508,65 @@ void ledModeCallback(const ros::MessageEvent<std_msgs::Int32 const>& event){
     _leds_by_name_.at(link_name)->set_mode(led_mode->data);
 }
 //}
+
+/* yieldCallback //{ */
+void yieldCallback(const uvdar_gazebo_plugin::CamInfoConstPtr &cam_info)
+{
+  CameraProps cam_props;
+  cam_props.name = cam_info.name.data;
+  cam_props.scoped_name = cam_info.scoped_name.data;
+  cam_props.f = cam_info.f.data;
+  cam_props.occlusions = cam_info.occlusions.data;
+
+  addCamera(cam_props);
+}
+//}
+
+void addCamera(CameraProps cam_props){
+  physics::EntityPtr new_cam;
+  new_cam = world->EntityByName(cam_props.scoped_name)
+  cameras.push_back(new_cam);
+  cam_poses.push_back(ignition::math::Pose3d());
+}
+
+std::optional<CameraProps> findExistingEquivalentCamera(){
+
+  std::vector<std::string> paramlist;
+  if (nh_.getParamNames(paramlist)){
+    for (auto p : paramlist){
+      /* std::cout << "UVCAM sees param: " << p << std::endl; */
+      std::size_t found = p.find(CAM_EXISTENCE_HEADER);
+      if (found!=std::string::npos){
+        std::string cam_name = p;
+        cam_name = cam_name.erase(cam_name.rfind('/'));
+        std::cout << "CAM found: " << cam_name << '\n';
+        CameraProps cam_props;
+        cam_props.name = cam_name;
+        nh_.getParam(cam_name+"/scoped_name",cam_props.scoped_name);
+        nh_.getParam(cam_name+"/f",cam_props.f);
+        nh_.getParam(cam_name+"/occlusions",cam_props.occlusions);
+
+        if ((cam_props.f == f) && (cam_props.occlusions == _use_occlusions_)){
+          return std::optional<CameraProps>{cam_props};
+        }
+      }
+    }
+  }
+  return std::nullopt;
+
+}
+
+bool yieldRendering(){
+  yield_publisher =  nh_.advertise<uvdar_gazebo_plugin::CamInfo>(CAM_YIELD_TOPIC, 10, true);
+  uvdar_gazebo_plugin::CamInfo cam_info;
+  cam_info.name.data = sensor->Name();
+  cam_info.scoped_name.data = this->sensor->ScopedName();
+  cam_info.f.data = f;
+  cam_info.occlusions.data = _use_occlusions_;
+  yield_publisher.publish(cam_info);
+  yielded_rendering = true;
+  return true;
+}
 
 /* poseCB //{ */
   /* void poseCB(ConstPosePtr &i_pose) { */
