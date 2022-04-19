@@ -41,11 +41,22 @@
 /* using namespace ignition; */
 namespace gazebo
 {
+
   struct CameraProps {
-      std::string name;
       std::string scoped_name;
+      std::string parent_name;
+      unsigned int sensor_id;
+      std::string publish_topic;
       double f;
       bool occlusions;
+  };
+
+  struct CameraData {
+      CameraProps props;
+      physics::EntityPtr parent_entity;
+      sensors::SensorPtr sensor;
+      ignition::math::Pose3d pose;
+      ros::Publisher virtual_points_publisher;
   };
 
 class UvCam : public SensorPlugin {
@@ -55,21 +66,20 @@ private:
   boost::mutex mtx_leds, mtx_occlusion;
   /* std::vector<std::pair<ignition::math::Pose3d,ignition::math::Pose3d>> buffer; */
   int                       id;
-  double                    f,T;
-  bool                      _use_occlusions_;
   uchar                     background;
   transport::SubscriberPtr  poseSub;
   transport::SubscriberPtr  stateSub;
   ros::Subscriber           linkSub;
 
+  /* sensors::SensorPtr sensor; */
+
   ros::Subscriber           yield_sub;
 
-  std::vector<ignition::math::Pose3d> cam_poses;
   gazebo::physics::WorldPtr world;
   gazebo::physics::PhysicsEnginePtr pengine;
   physics::RayShapePtr curr_ray;
   boost::shared_ptr<ODERayHack::RayIntersectorHack> ray_int_hack;
-  physics::EntityPtr        parent;
+  /* physics::EntityPtr        parent; */
   /* bool                     ledState[20]; */
   ignition::math::Pose3d       ledPose;
   ignition::math::Quaternion<double> invOrient;
@@ -101,7 +111,7 @@ private:
 
   std::unordered_map<std::string, std::shared_ptr<LedMgr> > _leds_by_name_;
 
-  std::vector<physics::EntityPtr> cameras;
+  std::vector<CameraData> cameras;
   // Pointer to the update event connection
   event::ConnectionPtr updateConnection;
 
@@ -109,7 +119,6 @@ private:
 
   ros::CallbackQueue link_queue_;
 
-  ros::Publisher virtual_points_publisher;
   ros::Publisher yield_publisher;
   bool yielded_rendering = false;
 
@@ -136,20 +145,20 @@ public:
     /* CameraPlugin::Load(_parent, _sdf); */
     // copying from CameraPlugin into GazeboRosCameraUtils
     // Store the pointer to the model
-    sensors::SensorPtr sensor;
-    sensor           = _parent;
+    /* sensor           = _parent; */
 
 
     /* this->parentSensor->SetActive(false); */
     world      = physics::get_world("default");
+    world->PrintEntityTree();
     pengine      = world->Physics();
 
     curr_ray = boost::dynamic_pointer_cast<physics::RayShape>(
         pengine->CreateShape("ray", physics::CollisionPtr()));
     std::string parentName = _parent->ParentName();
-    parent                 = world->EntityByName(parentName);
-    std::cout << "Camera parent name: " << sensor->ScopedName() << std::endl;
-    ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine, sensor->ScopedName());
+    /* parent                 = world->EntityByName(parentName); */
+    std::cout << "Camera parent name: " << _parent->ScopedName() << std::endl;
+    ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine, _parent->ScopedName());
 
     if (_sdf->HasElement("calibration_file")) {
       filename = _sdf->GetElement("calibration_file")->Get< std::string >();
@@ -160,6 +169,10 @@ public:
       return;
     }
     /* id = 1; */
+
+    double                    f;
+    bool                      _use_occlusions;
+
     if (_sdf->HasElement("framerate")) {
       f = _sdf->GetElement("framerate")->Get< double >();
       std::cout << "Camera framerate is " << f << "Hz" << std::endl;
@@ -168,16 +181,14 @@ public:
       f = 60.0;  // camera framerat
     }
 
-    T = 1.0/f;
-
     if (_sdf->HasElement("occlusion")) {
-      _use_occlusions_ = _sdf->GetElement("occlusion")->Get< bool >();
+      _use_occlusions = _sdf->GetElement("occlusion")->Get< bool >();
     }
     else
-      _use_occlusions_ = false;
+      _use_occlusions = false;
 
 
-    if (_use_occlusions_) {
+    if (_use_occlusions) {
       std::cout << "Occlusions in UV camera enabled!" << std::endl;
     }
     else {
@@ -216,27 +227,27 @@ public:
       publish_topic = parentName.substr(0, parentName.find(":")) + "/uvdar_bluefox/image_raw";
     }
 
-    auto preferredCamera = findExistingEquivalentCamera();
+    CameraProps cam_props = {.scoped_name=_parent->ScopedName(), .parent_name=_parent->ParentName(), _parent->Id(), .publish_topic=publish_topic, .f=f, .occlusions=_use_occlusions};
+    auto preferredCamera = findExistingEquivalentCamera(cam_props);
     if (preferredCamera) {
-      std::cout << "UVCAM " << sensor->Name() << " will yield rendering to " << preferredCamera.value().name << "." << std::endl;
-      if (!yieldRendering()){
-      std::cout << "UVCAM " << sensor->Name() << " failed to yield rendering!" << std::endl;
+      std::cout << "UVCAM " << _parent->Name() << " will yield rendering to " << preferredCamera.value().scoped_name << "." << std::endl;
+      if (!yieldRendering(cam_props)){
+      std::cout << "UVCAM " << _parent->Name() << " failed to yield rendering!" << std::endl;
       }
     } else{
-      /* nh_.setParam(CAM_EXISTENCE_HEADER+sensor->Name()+"/name", sensor->Name()); */
-      nh_.setParam(CAM_EXISTENCE_HEADER+sensor->Name()+"/scoped_name", sensor->ScopedName());
-      nh_.setParam(CAM_EXISTENCE_HEADER+sensor->Name()+"/f", f);
-      nh_.setParam(CAM_EXISTENCE_HEADER+sensor->Name()+"/occlusions", _use_occlusions_);
-      cameras.push_back(world->EntityByName(_parent->Name())n;
+      /* nh_.setParam(CAM_EXISTENCE_HEADER+_parent->Name()+"/name", _parent->Name()); */
+      nh_.setParam(CAM_EXISTENCE_HEADER+_parent->Name()+"/scoped_name", _parent->ScopedName());
+      nh_.setParam(CAM_EXISTENCE_HEADER+_parent->Name()+"/publish_topic", publish_topic);
+      nh_.setParam(CAM_EXISTENCE_HEADER+_parent->Name()+"/f", f);
+      nh_.setParam(CAM_EXISTENCE_HEADER+_parent->Name()+"/occlusions", _use_occlusions);
+      /* CameraProps cam_props = {.name=_parent->Name(), .scoped_name=_parent->ScopedName(), .publish_topic=publish_topic, .f=f, .occlusions=_use_occlusions}; */
+
+      ros::init(zero, &dummy, "uvdar_bluefox_emulator");
+      addCamera(cam_props);
+
+      yield_sub = nh_.subscribe(CAM_YIELD_TOPIC, 10, &UvCam::yieldCallback, this);
+
     }
-
-    ros::init(zero, &dummy, "uvdar_bluefox_emulator");
-
-    std::cout << "Publishing UV Camera data to topic: /gazebo" << publish_topic << "\"" << std::endl;
-
-    yield_sub = nh_.subscribe(CAM_YIELD_TOPIC, 10, &UvCam::yieldCallback, this);
-    virtual_points_publisher = nh_.advertise<sensor_msgs::PointCloud>("/gazebo"+publish_topic, 1);
-
   }
   //}
 
@@ -270,8 +281,8 @@ private:
     pengine->InitForThread();
 
     /* ros::Rate rt(f + ((double(rand()%100)/50.0)-1.0)); //to simulate the possible difference between the camera framerate and the blinking generator bit rate. This has to be done here, since LEDs on a single UAV are always synchronized w.r.t. each other. */
-    ros::Rate rt(f);
-    geometry_msgs::Pose cur_pose;
+    ros::Rate rt(cameras.front().props.f);
+    geometry_msgs::Pose cur_led_pose;
     cv::Point3d output;
     geometry_msgs::Point32 pt;
     sensor_msgs::PointCloud msg_ptcl;
@@ -290,28 +301,30 @@ private:
       /* elapsedTime = double(end_p - begin) / CLOCKS_PER_SEC; */
       /* std::cout << "UV CAM: Wiping took : " << elapsedTime << " s" << std::endl; */
       /* for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){ */
-      {
-        boost::mutex::scoped_lock lock(mtx_leds);
-        leds_by_name_local = _leds_by_name_;
-        /* led = ledr; */
-      }
-      msg_ptcl.header.stamp = ros::Time::now();
-      msg_ptcl.points.clear();
-      double sec_time = msg_ptcl.header.stamp.toSec();
-      for (auto& led : leds_by_name_local){
-        if (led.second->get_pose(cur_pose, sec_time)){
-          if (drawPose_virtual({cur_pose,pose}, output)){
-            pt.x = output.x;
-            pt.y = output.y;
-            pt.z = output.z;
-            msg_ptcl.points.push_back(pt);
+      for (auto &cam : cameras){
+        {
+          boost::mutex::scoped_lock lock(mtx_leds);
+          leds_by_name_local = _leds_by_name_;
+          /* led = ledr; */
+        }
+        msg_ptcl.header.stamp = ros::Time::now();
+        msg_ptcl.points.clear();
+        double sec_time = msg_ptcl.header.stamp.toSec();
+        for (auto& led : leds_by_name_local){
+          if (led.second->get_pose(cur_led_pose, sec_time)){
+            if (drawPose_virtual({cur_led_pose,cam.pose}, output)){
+              pt.x = output.x;
+              pt.y = output.y;
+              pt.z = output.z;
+              msg_ptcl.points.push_back(pt);
+            }
           }
         }
-      }
-      virtual_points_publisher.publish(msg_ptcl);
-      /* end         = std::clock(); */
-      /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
-      /* std::cout << "UV CAM: Drawing took : " << elapsedTime << " s" << std::endl; */
+        cam.virtual_points_publisher.publish(msg_ptcl);
+        /* end         = std::clock(); */
+        /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
+        /* std::cout << "UV CAM: Drawing took : " << elapsedTime << " s" << std::endl; */
+    }
       rt.sleep();
     }
   }
@@ -320,8 +333,8 @@ private:
   /* LinkQueueThread //{ */
   void LinkQueueThread() {
 
-    static const double timeout = T;
-    ros::Rate rt(f);
+    static const double timeout = 1.0/(cameras.front().props.f);
+    ros::Rate rt(cameras.front().props.f);
     while (nh_.ok())
     {
       link_queue_.callAvailable(ros::WallDuration(timeout));
@@ -337,7 +350,8 @@ public:
     /* std::cout << "sending" << std::endl; */
     // Apply a small linear velocity to the model.
     for (auto &c : cameras){
-      cam_poses = c->WorldPose();
+
+      c.pose = c.sensor->Pose() + c.parent_entity->WorldPose();
     }
 
     
@@ -513,23 +527,53 @@ void ledModeCallback(const ros::MessageEvent<std_msgs::Int32 const>& event){
 void yieldCallback(const uvdar_gazebo_plugin::CamInfoConstPtr &cam_info)
 {
   CameraProps cam_props;
-  cam_props.name = cam_info.name.data;
-  cam_props.scoped_name = cam_info.scoped_name.data;
-  cam_props.f = cam_info.f.data;
-  cam_props.occlusions = cam_info.occlusions.data;
+  cam_props.scoped_name = cam_info->scoped_name.data;
+  cam_props.parent_name = cam_info->parent_name.data;
+  cam_props.sensor_id = cam_info->sensor_id.data;
+  cam_props.publish_topic = cam_info->publish_topic.data;
+  cam_props.f = cam_info->f.data;
+  cam_props.occlusions = cam_info->occlusions.data;
 
   addCamera(cam_props);
 }
 //}
 
 void addCamera(CameraProps cam_props){
-  physics::EntityPtr new_cam;
-  new_cam = world->EntityByName(cam_props.scoped_name)
-  cameras.push_back(new_cam);
-  cam_poses.push_back(ignition::math::Pose3d());
+  std::cout << "Publishing UV Camera " << cam_props.scoped_name << " data to topic: /gazebo" << cam_props.publish_topic << "\"" << std::endl;
+  cameras.push_back({
+      .props=cam_props,
+      .parent_entity = world->EntityByName(cam_props.scoped_name),
+      .sensor = getSensor(cam_props.sensor_id),
+      .pose=ignition::math::Pose3d(),
+      .virtual_points_publisher = nh_.advertise<sensor_msgs::PointCloud>("/gazebo"+cam_props.publish_topic, 1)});
 }
 
-std::optional<CameraProps> findExistingEquivalentCamera(){
+sensors::SensorPtr getSensor(unsigned int id){
+  /* int model_count = world->ModelCount(); */
+  const int model_count = 2;
+  std::cout << "There are " << model_count << " models" << '\n';
+  for (int i=0; (i<model_count); i++){
+    if (i<model_count){
+      std::cout << "i (" << i << ") is lower than " << model_count << '\n';
+    }
+    else{
+      std::cout << "i (" << i << ") is greater than " << model_count << '\n';
+    }
+    /* std::cout << "Model " << i << '\n'; */
+    /* for (auto &l : world->ModelByIndex(i)->GetLinks()){ */
+    /*   for (unsigned int j=0; j<l->GetSensorCount(); j++){ */
+    /*     sensors::SensorPtr candidate = sensors::get_sensor(l->GetSensorName(j)); */
+    /*     std::cout << "Considering " << candidate->Name() << '\n'; */
+    /*     if (candidate->Id() == id){ */
+    /*       std::cout << "Accepting " << candidate->Name() << '\n'; */
+    /*       return candidate; */
+    /*     } */
+    /*   } */
+    /* } */
+  }
+}
+
+std::optional<CameraProps> findExistingEquivalentCamera(CameraProps cam_props_current){
 
   std::vector<std::string> paramlist;
   if (nh_.getParamNames(paramlist)){
@@ -540,14 +584,14 @@ std::optional<CameraProps> findExistingEquivalentCamera(){
         std::string cam_name = p;
         cam_name = cam_name.erase(cam_name.rfind('/'));
         std::cout << "CAM found: " << cam_name << '\n';
-        CameraProps cam_props;
-        cam_props.name = cam_name;
-        nh_.getParam(cam_name+"/scoped_name",cam_props.scoped_name);
-        nh_.getParam(cam_name+"/f",cam_props.f);
-        nh_.getParam(cam_name+"/occlusions",cam_props.occlusions);
+        CameraProps cam_props_candidate;
+        nh_.getParam(cam_name+"/scoped_name",cam_props_candidate.scoped_name);
+        nh_.getParam(cam_name+"/publish_topic",cam_props_candidate.publish_topic);
+        nh_.getParam(cam_name+"/f",cam_props_candidate.f);
+        nh_.getParam(cam_name+"/occlusions",cam_props_candidate.occlusions);
 
-        if ((cam_props.f == f) && (cam_props.occlusions == _use_occlusions_)){
-          return std::optional<CameraProps>{cam_props};
+        if ((cam_props_candidate.f == cam_props_current.f) && (cam_props_candidate.occlusions == cam_props_current.occlusions)){
+          return std::optional<CameraProps>{cam_props_candidate};
         }
       }
     }
@@ -556,13 +600,15 @@ std::optional<CameraProps> findExistingEquivalentCamera(){
 
 }
 
-bool yieldRendering(){
+bool yieldRendering(CameraProps cam_props){
   yield_publisher =  nh_.advertise<uvdar_gazebo_plugin::CamInfo>(CAM_YIELD_TOPIC, 10, true);
   uvdar_gazebo_plugin::CamInfo cam_info;
-  cam_info.name.data = sensor->Name();
-  cam_info.scoped_name.data = this->sensor->ScopedName();
-  cam_info.f.data = f;
-  cam_info.occlusions.data = _use_occlusions_;
+  cam_info.scoped_name.data = cam_props.scoped_name;
+  cam_info.parent_name.data = cam_props.parent_name;
+  cam_info.sensor_id.data = cam_props.sensor_id;
+  cam_info.publish_topic.data = cam_props.publish_topic;
+  cam_info.f.data = cam_props.f;
+  cam_info.occlusions.data = cam_props.occlusions;
   yield_publisher.publish(cam_info);
   yielded_rendering = true;
   return true;
@@ -606,10 +652,10 @@ bool yieldRendering(){
         input_poses.first.orientation.z
         );
 
-    ignition::math::Pose3d pose = input_poses.second;
+    ignition::math::Pose3d cam_pose = input_poses.second;
     invOrient = ledPose.Rot();
     invOrient.Invert();
-    diffPose = (ledPose - pose);
+    diffPose = (ledPose - cam_pose);
     input[0] = -(diffPose.Pos().Z());
     input[1] = -(diffPose.Pos().Y());
     input[2] = -(diffPose.Pos().X());
@@ -620,7 +666,7 @@ bool yieldRendering(){
     /* std::cout << ledPose << std::endl; */
     world2cam(ledProj, input, &oc_model);
     a            = ignition::math::Pose3d(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
-    b            = ignition::math::Pose3d((pose.Pos()) - (ledPose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
+    b            = ignition::math::Pose3d((cam_pose.Pos()) - (ledPose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
 
 
     distance     = b.Pos().Length();
@@ -641,8 +687,8 @@ bool yieldRendering(){
     /*   visual_current_ = world_scene_->GetVisual("tree_*"); */
     /* std::cout << "Here B" << std::endl; */
       /* if (visual_current_ != NULL){ */
-        /* auto diff = ignition::math::Pose3d((ledPose.Pos()) - (pose.Pos()), ignition::math::Quaternion<double>(0, 0, 0)); */
-        if (getObstacle_granular( pose, ledPose))
+        /* auto diff = ignition::math::Pose3d((ledPose.Pos()) - (cam_pose.Pos()), ignition::math::Quaternion<double>(0, 0, 0)); */
+        if (getObstacle_granular( cam_pose, ledPose))
           return false;
       /* } */
       /* if (getObstacle( pose, ledPose)){ */
@@ -753,7 +799,7 @@ bool yieldRendering(){
 bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d led){
   /* std::chrono::steady_clock::time_point begin_t = std::chrono::steady_clock::now(); */
 
-  if (!_use_occlusions_)
+  if (!cameras.front().props.occlusions)
     return false;
   double led_distance = (camera.Pos() - led.Pos()).Length();
 
@@ -798,7 +844,7 @@ bool getObstacle(ignition::math::Pose3d camera, ignition::math::Pose3d led){
 /* getObstacle_granular //{ */
 bool getObstacle_granular(ignition::math::Pose3d camera, ignition::math::Pose3d led)
 {
-  if (!_use_occlusions_)
+  if (!cameras.front().props.occlusions)
     return false;
 
   if (pengine->GetType() != "ode"){
