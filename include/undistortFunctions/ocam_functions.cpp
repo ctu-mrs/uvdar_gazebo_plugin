@@ -6,6 +6,7 @@
 ------------------------------------------------------------------------------*/
 
 #include "ocam_functions.h"
+#include <cstdio>
 
 //------------------------------------------------------------------------------
 int get_ocam_model(struct ocam_model *myocam_model, char *filename) {
@@ -31,37 +32,43 @@ int get_ocam_model(struct ocam_model *myocam_model, char *filename) {
   }
 
   // Read polynomial coefficients
-  fgets(buf, CMV_MAX_BUF, f);
-  fscanf(f, "\n");
-  fscanf(f, "%d", length_pol);
+  std::ignore = fgets(buf, CMV_MAX_BUF, f);
+  std::ignore = fscanf(f, "\n");
+  std::ignore = fscanf(f, "%d", length_pol);
   for (i = 0; i < *length_pol; i++) {
-    fscanf(f, " %lf", &pol[i]);
+    std::ignore = fscanf(f, " %lf", &pol[i]);
   }
 
   // Read inverse polynomial coefficients
-  fscanf(f, "\n");
-  fgets(buf, CMV_MAX_BUF, f);
-  fscanf(f, "\n");
-  fscanf(f, "%d", length_invpol);
+  std::ignore = fscanf(f, "\n");
+  std::ignore = fgets(buf, CMV_MAX_BUF, f);
+  std::ignore = fscanf(f, "\n");
+  std::ignore = fscanf(f, "%d", length_invpol);
   for (i = 0; i < *length_invpol; i++) {
-    fscanf(f, " %lf", &invpol[i]);
+    std::ignore = fscanf(f, " %lf", &invpol[i]);
   }
 
   // Read center coordinates
-  fscanf(f, "\n");
-  fgets(buf, CMV_MAX_BUF, f);
-  fscanf(f, "\n");
-  fscanf(f, "%lf %lf\n", xc, yc);
+  std::ignore = fscanf(f, "\n");
+  std::ignore = fgets(buf, CMV_MAX_BUF, f);
+  std::ignore = fscanf(f, "\n");
+  std::ignore = fscanf(f, "%lf %lf\n", xc, yc);
 
   // Read affine coefficients
-  fgets(buf, CMV_MAX_BUF, f);
-  fscanf(f, "\n");
-  fscanf(f, "%lf %lf %lf\n", c, d, e);
+  std::ignore = fgets(buf, CMV_MAX_BUF, f);
+  std::ignore = fscanf(f, "\n");
+  std::ignore = fscanf(f, "%lf %lf %lf\n", c, d, e);
 
   // Read image size
-  fgets(buf, CMV_MAX_BUF, f);
-  fscanf(f, "\n");
-  fscanf(f, "%d %d", height, width);
+  std::ignore = fgets(buf, CMV_MAX_BUF, f);
+  std::ignore = fscanf(f, "\n");
+  std::ignore = fscanf(f, "%d %d", height, width);
+
+  // Open file
+  if (feof(f) || ferror(f)) {
+    printf("Could not read all parameters from file %s\n", filename);
+    return -1;
+  }
 
   fclose(f);
   return 0;
@@ -107,8 +114,6 @@ void world2cam(double point2D[2], double point3D[3], struct ocam_model *myocam_m
   double  c             = (myocam_model->c);
   double  d             = (myocam_model->d);
   double  e             = (myocam_model->e);
-  int     width         = (myocam_model->width);
-  int     height        = (myocam_model->height);
   int     length_invpol = (myocam_model->length_invpol);
   double  norm          = sqrt(point3D[0] * point3D[0] + point3D[1] * point3D[1]);
   double  theta         = atan(point3D[2] / norm);
@@ -145,9 +150,9 @@ void create_perspecive_undistortion_LUT(cv::Mat *mapx, cv::Mat *mapy, struct oca
   int    height    = mapx->rows;  // New height
   float *data_mapx = (float *)mapx->data;
   float *data_mapy = (float *)mapy->data;
-  float  Nxc       = height / 2.0;
-  float  Nyc       = width / 2.0;
-  float  Nz        = -width / sf;
+  double Nxc       = height / 2.0;
+  double Nyc       = width / 2.0;
+  double Nz        = -static_cast<double>(width) / sf;
   double M[3];
   double m[2];
 
@@ -174,8 +179,8 @@ void create_panoramic_undistortion_LUT(cv::Mat *mapx, cv::Mat *mapy, float Rmin,
 
   for (i = 0; i < height; i++)
     for (j = 0; j < width; j++) {
-      theta                        = -((float)j) / width * 2 * M_PI;  // Note, if you would like to flip the image, just inverte the sign of theta
-      rho                          = Rmax - (Rmax - Rmin) / height * i;
+      theta                        = -((float)j) / static_cast<float>(width) * 2 * static_cast<float>(M_PI);  // Note, if you would like to flip the image, just inverte the sign of theta
+      rho                          = Rmax - (Rmax - Rmin) / static_cast<float>(height) * static_cast<float>(i);
       *(data_mapx + i * width + j) = yc + rho * sin(theta);  // in OpenCV "x" is the
       *(data_mapy + i * width + j) = xc + rho * cos(theta);
     }

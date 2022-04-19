@@ -63,7 +63,7 @@ class UvCam : public SensorPlugin {
 private:
   /* variables //{ */
   /* std::mutex mtx_buffer; */
-  boost::mutex mtx_leds, mtx_occlusion;
+  std::mutex mtx_leds, mtx_occlusion;
   /* std::vector<std::pair<ignition::math::Pose3d,ignition::math::Pose3d>> buffer; */
   int                       id;
   uchar                     background;
@@ -227,7 +227,7 @@ public:
       publish_topic = parentName.substr(0, parentName.find(":")) + "/uvdar_bluefox/image_raw";
     }
 
-    CameraProps cam_props = {.scoped_name=_parent->ScopedName(), .parent_name=_parent->ParentName(), _parent->Id(), .publish_topic=publish_topic, .f=f, .occlusions=_use_occlusions};
+    CameraProps cam_props = {.scoped_name=_parent->ScopedName(), .parent_name=_parent->ParentName(), .sensor_id=_parent->Id(), .publish_topic=publish_topic, .f=f, .occlusions=_use_occlusions};
     auto preferredCamera = findExistingEquivalentCamera(cam_props);
     if (preferredCamera) {
       std::cout << "UVCAM " << _parent->Name() << " will yield rendering to " << preferredCamera.value().scoped_name << "." << std::endl;
@@ -286,7 +286,7 @@ private:
     cv::Point3d output;
     geometry_msgs::Point32 pt;
     sensor_msgs::PointCloud msg_ptcl;
-    std::unordered_map<std::string, std::shared_ptr<LedMgr> > leds_by_name_local;
+    std::unordered_map<std::string, std::shared_ptr<LedMgr>> leds_by_name_local;
     /* std::pair<std::string, std::shared_ptr<LedMgr> > led; */
     while (ros::ok()){
       /* begin         = std::clock(); */
@@ -301,9 +301,10 @@ private:
       /* elapsedTime = double(end_p - begin) / CLOCKS_PER_SEC; */
       /* std::cout << "UV CAM: Wiping took : " << elapsedTime << " s" << std::endl; */
       /* for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){ */
-      for (auto &cam : cameras){
+      for (auto &cam : cameras)
+      {
         {
-          boost::mutex::scoped_lock lock(mtx_leds);
+          std::scoped_lock lock(mtx_leds);
           leds_by_name_local = _leds_by_name_;
           /* led = ledr; */
         }
@@ -324,7 +325,7 @@ private:
         /* end         = std::clock(); */
         /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
         /* std::cout << "UV CAM: Drawing took : " << elapsedTime << " s" << std::endl; */
-    }
+      }
       rt.sleep();
     }
   }
@@ -396,7 +397,7 @@ public:
 
     /* } */
     /* else{ */
-    /*   boost::mutex::scoped_lock lock(mtx_occlusion); */
+    /*   std::scoped_lock lock(mtx_occlusion); */
     /* } */
 
     /* shutterOpenPrev = shutterOpen; */
@@ -450,11 +451,11 @@ void linkCallback(const gazebo_msgs::LinkStatesConstPtr &link_states)
       /* std::cout << poses.at(it) << std::endl; */
 
       if (_leds_by_name_.count(cur_link_name) != 0){
-        boost::mutex::scoped_lock lock(mtx_leds);
+        std::scoped_lock lock(mtx_leds);
         _leds_by_name_.at(cur_link_name)->update_link_pose(cur_link_name, poses.at(it));
       }
       else{
-        boost::mutex::scoped_lock lock(mtx_leds);
+        std::scoped_lock lock(mtx_leds);
         std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh_, cur_name);
         _leds_by_name_.insert({cur_link_name, led});
         /* std::cout << "Subscribing to LED info of " << "/gazebo/ledProperties/"+cur_link_name << std::endl; */
@@ -470,56 +471,54 @@ void linkCallback(const gazebo_msgs::LinkStatesConstPtr &link_states)
 
 /* void ledInfoCallback //{ */
 void ledInfoCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>& event){
-  boost::mutex::scoped_lock lock(mtx_leds);
+  std::scoped_lock lock(mtx_leds);
   /* std::cout << "Getting message" << std::endl; */
-    ros::M_string mhdr = event.getConnectionHeader();
-    std::string topic = mhdr["topic"];
-    std::string link_name = topic.substr(std::string("/gazebo/ledProperties/").length());
-    const uvdar_gazebo_plugin::LedInfoConstPtr& led_info = event.getMessage();
-    /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
-    if ((led_info->ID.data >= 0) && (led_info->ID.data < (int)(sequences_.size()))){
-      _leds_by_name_.at(link_name)->update_data(sequences_[led_info->ID.data],led_info->seq_bitrate.data, led_info->mes_bitrate.data);
-    }
-    else {
-      std::cerr << "[UVDAR camera]: Invalid sequence ID: " << led_info->ID.data << std::endl;
-    }
+  ros::M_string mhdr = event.getConnectionHeader();
+  std::string topic = mhdr["topic"];
+  std::string link_name = topic.substr(std::string("/gazebo/ledProperties/").length());
+  const uvdar_gazebo_plugin::LedInfoConstPtr& led_info = event.getMessage();
+  /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
 
-    _leds_by_name_.at(link_name)->set_active(led_info->active.data);
+  if ((led_info->ID.data >= 0) && (led_info->ID.data < (int)(sequences_.size())))
+    _leds_by_name_.at(link_name)->update_data(sequences_[led_info->ID.data],led_info->seq_bitrate.data, led_info->mes_bitrate.data);
+  else
+    std::cerr << "[UVDAR camera]: Invalid sequence ID: " << led_info->ID.data << std::endl;
 
+  _leds_by_name_.at(link_name)->set_active(led_info->active.data);
 }
 //}
 
 /* void ledMessageCallback //{ */
 void ledMessageCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedMessage const>& event){
-  boost::mutex::scoped_lock lock(mtx_leds);
+  std::scoped_lock lock(mtx_leds);
   /* std::cout << "Getting message" << std::endl; */
-    ros::M_string mhdr = event.getConnectionHeader();
-    std::string topic = mhdr["topic"];
-    std::string link_name = topic.substr(std::string("/gazebo/ledMessage/").length());
-    const uvdar_gazebo_plugin::LedMessageConstPtr& led_message = event.getMessage();
-    /* std::cout << "UV CAM: receiving message of length " << led_message->data_frame.size() << std::endl; */
+  ros::M_string mhdr = event.getConnectionHeader();
+  std::string topic = mhdr["topic"];
+  std::string link_name = topic.substr(std::string("/gazebo/ledMessage/").length());
+  const uvdar_gazebo_plugin::LedMessageConstPtr& led_message = event.getMessage();
+  /* std::cout << "UV CAM: receiving message of length " << led_message->data_frame.size() << std::endl; */
 
-    if (led_message->data_frame.size() >0){
-      std::vector<bool> data_frame;
-      for (auto d : led_message->data_frame){
-        data_frame.push_back(d>0);
-      }
-      /* std::cout << "UV CAM: will transmit with length of  " << data_frame.size() << std::endl; */
-      _leds_by_name_.at(link_name)->update_message(data_frame);
+  if (led_message->data_frame.size() >0){
+    std::vector<bool> data_frame;
+    for (auto d : led_message->data_frame){
+      data_frame.push_back(d>0);
     }
+    /* std::cout << "UV CAM: will transmit with length of  " << data_frame.size() << std::endl; */
+    _leds_by_name_.at(link_name)->update_message(data_frame);
+  }
 }
 //}
 //
 /* void ledModeCallback //{ */
 void ledModeCallback(const ros::MessageEvent<std_msgs::Int32 const>& event){
-  boost::mutex::scoped_lock lock(mtx_leds);
+  std::scoped_lock lock(mtx_leds);
   /* std::cout << "Getting message" << std::endl; */
-    ros::M_string mhdr = event.getConnectionHeader();
-    std::string topic = mhdr["topic"];
-    std::string link_name = topic.substr(std::string("/gazebo/ledMode/").length());
-    auto led_mode = event.getMessage();
-    /* std::cout << "UV CAM: receiving mode of " << led_mode->data << std::endl; */
-    _leds_by_name_.at(link_name)->set_mode(led_mode->data);
+  ros::M_string mhdr = event.getConnectionHeader();
+  std::string topic = mhdr["topic"];
+  std::string link_name = topic.substr(std::string("/gazebo/ledMode/").length());
+  auto led_mode = event.getMessage();
+  /* std::cout << "UV CAM: receiving mode of " << led_mode->data << std::endl; */
+  _leds_by_name_.at(link_name)->set_mode(led_mode->data);
 }
 //}
 
@@ -538,39 +537,42 @@ void yieldCallback(const uvdar_gazebo_plugin::CamInfoConstPtr &cam_info)
 }
 //}
 
-void addCamera(CameraProps cam_props){
-  std::cout << "Publishing UV Camera " << cam_props.scoped_name << " data to topic: /gazebo" << cam_props.publish_topic << "\"" << std::endl;
-  cameras.push_back({
-      .props=cam_props,
-      .parent_entity = world->EntityByName(cam_props.scoped_name),
-      .sensor = getSensor(cam_props.sensor_id),
-      .pose=ignition::math::Pose3d(),
-      .virtual_points_publisher = nh_.advertise<sensor_msgs::PointCloud>("/gazebo"+cam_props.publish_topic, 1)});
+bool addCamera(CameraProps cam_props)
+{
+  const auto sensor = getSensor(cam_props.sensor_id);
+  if (sensor != nullptr)
+  {
+    cameras.push_back({
+        .props=cam_props,
+        .parent_entity = world->EntityByName(cam_props.scoped_name),
+        .sensor = sensor,
+        .pose=ignition::math::Pose3d(),
+        .virtual_points_publisher = nh_.advertise<sensor_msgs::PointCloud>("/gazebo"+cam_props.publish_topic, 1)});
+    std::cout << "Adding UV Camera " << cam_props.scoped_name << " data to topic: /gazebo" << cam_props.publish_topic << "\"" << std::endl;
+    return true;
+  }
+  else
+  {
+    std::cerr << "Could not find sensor with ID " << id << ", ignoring UV camera " << cam_props.scoped_name << std::endl;
+    return false;
+  }
 }
 
-sensors::SensorPtr getSensor(unsigned int id){
-  /* int model_count = world->ModelCount(); */
-  const int model_count = 2;
-  std::cout << "There are " << model_count << " models" << '\n';
-  for (int i=0; (i<model_count); i++){
-    if (i<model_count){
-      std::cout << "i (" << i << ") is lower than " << model_count << '\n';
+sensors::SensorPtr getSensor(unsigned int id)
+{
+  for (const auto& model : world->Models())
+  {
+    for (const auto &link : model->GetLinks())
+    {
+      for (unsigned j = 0; j < link->GetSensorCount(); j++)
+      {
+        const sensors::SensorPtr candidate = sensors::get_sensor(link->GetSensorName(j));
+        if (candidate->Id() == id)
+          return candidate;
+      }
     }
-    else{
-      std::cout << "i (" << i << ") is greater than " << model_count << '\n';
-    }
-    /* std::cout << "Model " << i << '\n'; */
-    /* for (auto &l : world->ModelByIndex(i)->GetLinks()){ */
-    /*   for (unsigned int j=0; j<l->GetSensorCount(); j++){ */
-    /*     sensors::SensorPtr candidate = sensors::get_sensor(l->GetSensorName(j)); */
-    /*     std::cout << "Considering " << candidate->Name() << '\n'; */
-    /*     if (candidate->Id() == id){ */
-    /*       std::cout << "Accepting " << candidate->Name() << '\n'; */
-    /*       return candidate; */
-    /*     } */
-    /*   } */
-    /* } */
   }
+  return nullptr;
 }
 
 std::optional<CameraProps> findExistingEquivalentCamera(CameraProps cam_props_current){
