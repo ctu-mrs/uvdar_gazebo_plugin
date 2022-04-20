@@ -63,7 +63,7 @@ class UvCam : public SensorPlugin {
 private:
   /* variables //{ */
   /* std::mutex mtx_buffer; */
-  std::mutex mtx_leds, mtx_occlusion;
+  std::mutex mtx_leds, mtx_cameras;
   /* std::vector<std::pair<ignition::math::Pose3d,ignition::math::Pose3d>> buffer; */
   int                       id;
   uchar                     background;
@@ -71,7 +71,7 @@ private:
   transport::SubscriberPtr  stateSub;
   ros::Subscriber           linkSub;
 
-  /* sensors::SensorPtr sensor; */
+  sensors::SensorPtr local_sensor;
 
   ros::Subscriber           yield_sub;
 
@@ -145,19 +145,19 @@ public:
     /* CameraPlugin::Load(_parent, _sdf); */
     // copying from CameraPlugin into GazeboRosCameraUtils
     // Store the pointer to the model
-    /* sensor           = _parent; */
+    local_sensor           = _parent;
 
 
     /* this->parentSensor->SetActive(false); */
     world      = physics::get_world("default");
-    world->PrintEntityTree();
+    /* world->PrintEntityTree(); */
     pengine      = world->Physics();
 
     curr_ray = boost::dynamic_pointer_cast<physics::RayShape>(
         pengine->CreateShape("ray", physics::CollisionPtr()));
     std::string parentName = _parent->ParentName();
     /* parent                 = world->EntityByName(parentName); */
-    std::cout << "Camera parent name: " << _parent->ScopedName() << std::endl;
+    std::cout << "Camera scoped name: " << _parent->ScopedName() << std::endl;
     ray_int_hack = boost::make_shared<ODERayHack::RayIntersectorHack>(pengine, _parent->ScopedName());
 
     if (_sdf->HasElement("calibration_file")) {
@@ -243,7 +243,7 @@ public:
       /* CameraProps cam_props = {.name=_parent->Name(), .scoped_name=_parent->ScopedName(), .publish_topic=publish_topic, .f=f, .occlusions=_use_occlusions}; */
 
       ros::init(zero, &dummy, "uvdar_bluefox_emulator");
-      addCamera(cam_props);
+      addCamera(cam_props, true);
 
       yield_sub = nh_.subscribe(CAM_YIELD_TOPIC, 10, &UvCam::yieldCallback, this);
 
@@ -301,7 +301,13 @@ private:
       /* elapsedTime = double(end_p - begin) / CLOCKS_PER_SEC; */
       /* std::cout << "UV CAM: Wiping took : " << elapsedTime << " s" << std::endl; */
       /* for (std::pair<ignition::math::Pose3d,ignition::math::Pose3d>& i : buffer){ */
-      for (auto &cam : cameras)
+      std::vector<CameraData> cameras_local;
+      {
+        std::scoped_lock lock(mtx_cameras);
+        cameras_local = cameras;
+      }
+
+      for (auto &cam : cameras_local)
       {
         {
           std::scoped_lock lock(mtx_leds);
@@ -334,8 +340,13 @@ private:
   /* LinkQueueThread //{ */
   void LinkQueueThread() {
 
-    static const double timeout = 1.0/(cameras.front().props.f);
-    ros::Rate rt(cameras.front().props.f);
+    double timeout;
+    ros::Rate rt(1);
+    {
+      std::scoped_lock lock(mtx_cameras);
+      timeout= 1.0/(cameras.front().props.f);
+      rt = ros::Rate(cameras.front().props.f);
+    }
     while (nh_.ok())
     {
       link_queue_.callAvailable(ros::WallDuration(timeout));
@@ -347,11 +358,12 @@ private:
 public:
 /* OnUpdate //{ */
   void OnUpdate() {
+    std::scoped_lock lock(mtx_cameras);
+
     /* ros::spinOnce(); */
     /* std::cout << "sending" << std::endl; */
     // Apply a small linear velocity to the model.
     for (auto &c : cameras){
-
       c.pose = c.sensor->Pose() + c.parent_entity->WorldPose();
     }
 
@@ -533,42 +545,75 @@ void yieldCallback(const uvdar_gazebo_plugin::CamInfoConstPtr &cam_info)
   cam_props.f = cam_info->f.data;
   cam_props.occlusions = cam_info->occlusions.data;
 
+  ros::Duration(1.0).sleep();
   addCamera(cam_props);
 }
 //}
 
-bool addCamera(CameraProps cam_props)
+bool addCamera(CameraProps cam_props, bool is_local=false)
 {
-  const auto sensor = getSensor(cam_props.sensor_id);
-  if (sensor != nullptr)
-  {
-    cameras.push_back({
-        .props=cam_props,
-        .parent_entity = world->EntityByName(cam_props.scoped_name),
-        .sensor = sensor,
-        .pose=ignition::math::Pose3d(),
-        .virtual_points_publisher = nh_.advertise<sensor_msgs::PointCloud>("/gazebo"+cam_props.publish_topic, 1)});
-    std::cout << "Adding UV Camera " << cam_props.scoped_name << " data to topic: /gazebo" << cam_props.publish_topic << "\"" << std::endl;
-    return true;
+  ros::Rate retry_rate(1.0);
+  while (ros::ok()){
+    sensors::SensorPtr sensor;
+    if (!is_local){
+      sensor = getSensor(cam_props.sensor_id);
+    }
+    else {
+      sensor = local_sensor;
+    }
+
+    if (sensor != nullptr){
+      physics::EntityPtr entity = world->EntityByName(sensor->ParentName());
+
+      if (entity != nullptr){
+        std::scoped_lock lock(mtx_cameras);
+        cameras.push_back({
+            .props=cam_props,
+            .parent_entity = entity,
+            .sensor = sensor,
+            .pose=ignition::math::Pose3d(),
+            .virtual_points_publisher = nh_.advertise<sensor_msgs::PointCloud>("/gazebo"+cam_props.publish_topic, 1)});
+        std::cout << "Adding UV Camera " << cam_props.scoped_name << " data to topic: /gazebo" << cam_props.publish_topic << "\"" << std::endl;
+        return true;
+      }
+      else 
+      {
+        std::cerr << "Could not find entity with name " << cam_props.scoped_name << ", ignoring UV camera " << cam_props.scoped_name << std::endl;
+        /* return false; */
+      }
+    }
+    else
+    {
+      std::cerr << "Could not find sensor with ID " << id << ", ignoring UV camera " << cam_props.scoped_name << std::endl;
+      /* return false; */
+    }
+    std::cerr << "try again" << std::endl;
+    if (!is_local){
+      retry_rate.sleep();
+    }
+    else {
+      break;
+    }
   }
-  else
-  {
-    std::cerr << "Could not find sensor with ID " << id << ", ignoring UV camera " << cam_props.scoped_name << std::endl;
-    return false;
-  }
+  return false;
 }
 
 sensors::SensorPtr getSensor(unsigned int id)
 {
-  for (const auto& model : world->Models())
-  {
-    for (const auto &link : model->GetLinks())
-    {
-      for (unsigned j = 0; j < link->GetSensorCount(); j++)
-      {
+  /* std::cout << "Model count: " << world->Models().size() << '\n'; */
+  for (const auto& model : world->Models()) {
+  /* std::cout << "Model: " << model->GetName() << '\n'; */
+    /* std::cout << "Link count: " << model->GetLinks().size() << '\n'; */
+    for (const auto &link : model->GetLinks()) {
+    /* std::cout << "Link: " << link->GetName() << '\n'; */
+      /* std::cout << "Sensor count: " << link->GetSensorCount() << '\n'; */
+      for (unsigned int j = 0; j < link->GetSensorCount(); j++) {
         const sensors::SensorPtr candidate = sensors::get_sensor(link->GetSensorName(j));
-        if (candidate->Id() == id)
+        /* std::cout << "Considering sensor: " << candidate->Name() << '\n'; */
+        if (candidate->Id() == id){
+          /* std::cout << "Accepting sensor: " << candidate->Name() << '\n'; */
           return candidate;
+        }
       }
     }
   }

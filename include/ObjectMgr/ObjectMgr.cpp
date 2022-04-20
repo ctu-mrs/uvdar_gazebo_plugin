@@ -8,7 +8,7 @@ ObjectMgr::ObjectMgr(ros::NodeHandle& nh, const std::string& model_name, const s
     m_model_state_pub = nh.advertise<gazebo_msgs::ModelState>("/gazebo/set_model_state", 100);
 }
 
-void ObjectMgr::update_link_pose(const std::string& link_name, const geometry_msgs::Pose& n_pose)
+void ObjectMgr::update_link_pose([[ maybe_unused ]] const std::string& link_name, const geometry_msgs::Pose& n_pose)
 {
   // if this object controls its own movement and the pose has
   // already been initialized, do not update the pose
