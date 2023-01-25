@@ -162,6 +162,7 @@ public:
 
     if (_sdf->HasElement("calibration_file")) {
       filename = _sdf->GetElement("calibration_file")->Get< std::string >();
+      filename.erase(remove( filename.begin(), filename.end(), '\"' ),filename.end());
       std::cout << "Calibration file is " << filename << std::endl;
     }
     else {
@@ -261,7 +262,10 @@ public:
     /* for (int i    = 0; i++; i < 20) */
     /* ledState[i] = false; */
 
-    get_ocam_model(&oc_model, (char*)(filename.c_str()));
+    if (get_ocam_model(&oc_model, (char*)(filename.c_str())) < 0){
+      std::cerr << "UVCAM " << " failed to open calibration file " << filename << std::endl;
+      return;
+    }
 
     /* parseSequenceFile("/home/viktor/mrs_workspace/src/uav_modules/ros_packages/uvdar_meta/uvdar_core/config/BlinkingSequence-8-3-3-2-8.txt"); */
     parseSequenceFile(ros::package::getPath("uvdar_core")+"/config/selected.txt");
@@ -463,19 +467,20 @@ void linkCallback(const gazebo_msgs::LinkStatesConstPtr &link_states)
       /* std::cout << "pose of " << cur_name << ": " << std::endl; */
       /* std::cout << poses.at(it) << std::endl; */
 
-      for (auto &l : _leds_by_name_){
-        if (l.first == link_name){
-          std::scoped_lock lock(mtx_leds);
-          l.second->update_link_pose(l.first, poses.at(it));
-          break;
-        }
-        {
-          std::scoped_lock lock(mtx_leds);
-          std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh_, link_name);
-          _leds_by_name_.insert({link_name, led});
-          _leds_by_name_.at(link_name)->set_active(false);
-        }
+      if (!(_leds_by_name_.find(link_name) == _leds_by_name_.end())){
+        std::scoped_lock lock(mtx_leds);
+        /* std::cout << "Updating " << link_name << std::endl; */
+        _leds_by_name_.at(link_name)->update_link_pose(link_name, poses.at(it));
       }
+      else
+      {
+        std::scoped_lock lock(mtx_leds);
+        std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh_, link_name);
+        std::cout << "Adding " << link_name << std::endl;
+        _leds_by_name_.insert({link_name, led});
+        _leds_by_name_.at(link_name)->set_active(false);
+      }
+      
 
     }
   }
@@ -507,7 +512,7 @@ void ledInfoCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>
   if (_leds_by_name_.at(link_name)->get_device_id() == ""){
 
     _leds_by_name_.at(link_name)->set_device_id(device_id);
-  /* std::cout << "Subscribing to LED info of " << "/gazebo/ledProperties/"+device_id << std::endl; */
+  std::cout << "Subscribing to LED info of " << "/gazebo/ledMessage/"+device_id << std::endl;
     ledMessageSubscribers.push_back(nh_.subscribe("/gazebo/ledMessage/"+device_id, 1, &UvCam::ledMessageCallback,this));
     ledModeSubscribers.push_back(nh_.subscribe("/gazebo/ledMode/"+device_id, 1, &UvCam::ledModeCallback,this));
 
@@ -724,9 +729,11 @@ bool yieldRendering(CameraProps cam_props){
     input[2] = -(diffPose.Pos().X());
 
     /* std::cout << "input: " << std::endl; */
-    /* std::cout << input_poses.first << std::endl; */
+    /* std::cout << "Input: " << input_poses.first << std::endl; */
     /* std::cout << "converted: " << std::endl; */
-    /* std::cout << ledPose << std::endl; */
+    /* std::cout << "LED pose: " <<  ledPose << std::endl; */
+    /* std::cout << "CAM pose: " << cam_pose << std::endl; */
+    /* std::cout << "CAM res: " << oc_model.width << "x" << oc_model.height << std::endl; */
     world2cam(ledProj, input, &oc_model);
     a            = ignition::math::Pose3d(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
     b            = ignition::math::Pose3d((cam_pose.Pos()) - (ledPose.Pos()), ignition::math::Quaternion<double>(0, 0, 0));
@@ -744,6 +751,7 @@ bool yieldRendering(CameraProps cam_props){
     output.x = ledProj[1];
     output.y = ledProj[0];
     output.z = radius;
+    /* std::cout << "Output: " << output << std::endl; */
     if (ledIntensity > 0.1) {
       
     /* std::cout << "Here A" << std::endl; */
