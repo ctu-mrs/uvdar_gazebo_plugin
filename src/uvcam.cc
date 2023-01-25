@@ -103,7 +103,7 @@ private:
   std::thread                      transfer_thread;
   std::thread                      link_callback_thread;
   ros::NodeHandle                  nh_;
-  std::vector<ros::Subscriber> ledInfoSubscribers;
+  ros::Subscriber ledInfoSubscriber;
   std::vector<ros::Subscriber> ledMessageSubscribers;
   std::vector<ros::Subscriber> ledModeSubscribers;
 
@@ -203,6 +203,7 @@ public:
     char poseTopicName[30];
     std::sprintf(poseTopicName, "~/uvleds/pose");
 
+    ledInfoSubscriber = nh_.subscribe("/gazebo/ledProperties", 20, &UvCam::ledInfoCallback,this);
 
     // Create a named topic, and subscribe to it.
     ros::SubscribeOptions so =
@@ -449,32 +450,33 @@ void linkCallback(const gazebo_msgs::LinkStatesConstPtr &link_states)
 
     for (size_t it = 0; it < names.size(); ++it) 
     {
-      const std::string& cur_name = names.at(it);
-      if (cur_name.find("_uvled_") == std::string::npos){
+      const std::string& link_name = names.at(it);
+      if (link_name.find("uvled_") == std::string::npos){
         continue;
       }
 
-      const size_t prependix_pos = cur_name.find_first_of("::");
-      const std::string cur_model_name = cur_name.substr(0, prependix_pos);
-      const std::string cur_link_name = cur_name.substr(prependix_pos+2);
+      /* const size_t prependix_pos = cur_name.find_first_of("::"); */
+      /* const std::string cur_model_name = cur_name.substr(0, prependix_pos); */
+      /* const std::string link_name = cur_name.substr(prependix_pos+2); */
 
 
       /* std::cout << "pose of " << cur_name << ": " << std::endl; */
       /* std::cout << poses.at(it) << std::endl; */
 
-      if (_leds_by_name_.count(cur_link_name) != 0){
-        std::scoped_lock lock(mtx_leds);
-        _leds_by_name_.at(cur_link_name)->update_link_pose(cur_link_name, poses.at(it));
+      for (auto &l : _leds_by_name_){
+        if (l.first == link_name){
+          std::scoped_lock lock(mtx_leds);
+          l.second->update_link_pose(l.first, poses.at(it));
+          break;
+        }
+        {
+          std::scoped_lock lock(mtx_leds);
+          std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh_, link_name);
+          _leds_by_name_.insert({link_name, led});
+          _leds_by_name_.at(link_name)->set_active(false);
+        }
       }
-      else{
-        std::scoped_lock lock(mtx_leds);
-        std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh_, cur_name);
-        _leds_by_name_.insert({cur_link_name, led});
-        /* std::cout << "Subscribing to LED info of " << "/gazebo/ledProperties/"+cur_link_name << std::endl; */
-        ledInfoSubscribers.push_back(nh_.subscribe("/gazebo/ledProperties/"+cur_link_name, 1, &UvCam::ledInfoCallback,this));
-        ledMessageSubscribers.push_back(nh_.subscribe("/gazebo/ledMessage/"+cur_link_name, 1, &UvCam::ledMessageCallback,this));
-        ledModeSubscribers.push_back(nh_.subscribe("/gazebo/ledMode/"+cur_link_name, 1, &UvCam::ledModeCallback,this));
-      }
+
     }
   }
 
@@ -487,16 +489,30 @@ void ledInfoCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>
   /* std::cout << "Getting message" << std::endl; */
   ros::M_string mhdr = event.getConnectionHeader();
   std::string topic = mhdr["topic"];
-  std::string link_name = topic.substr(std::string("/gazebo/ledProperties/").length());
   const uvdar_gazebo_plugin::LedInfoConstPtr& led_info = event.getMessage();
+  std::string link_name = led_info->link_name.data;
+  std::string device_id = led_info->device_id.data;
   /* std::cout << "UV CAM: receiving frequency of " << led_info->frequency.data << " for link  " << link_name << std::endl; */
 
+  if (_leds_by_name_.find(link_name) == _leds_by_name_.end()){
+    std::shared_ptr<LedMgr> led = std::make_shared<LedMgr>(nh_, link_name);
+    _leds_by_name_.insert({link_name,led});
+  }
+
   if ((led_info->ID.data >= 0) && (led_info->ID.data < (int)(sequences_.size())))
-    _leds_by_name_.at(link_name)->update_data(sequences_[led_info->ID.data],led_info->seq_bitrate.data, led_info->mes_bitrate.data);
+    _leds_by_name_.at(link_name)->update_data(link_name, sequences_[led_info->ID.data],led_info->seq_bitrate.data, led_info->mes_bitrate.data);
   else
     std::cerr << "[UVDAR camera]: Invalid sequence ID: " << led_info->ID.data << std::endl;
 
-  _leds_by_name_.at(link_name)->set_active(led_info->active.data);
+  if (_leds_by_name_.at(link_name)->get_device_id() == ""){
+
+    _leds_by_name_.at(link_name)->set_device_id(device_id);
+  /* std::cout << "Subscribing to LED info of " << "/gazebo/ledProperties/"+device_id << std::endl; */
+    ledMessageSubscribers.push_back(nh_.subscribe("/gazebo/ledMessage/"+device_id, 1, &UvCam::ledMessageCallback,this));
+    ledModeSubscribers.push_back(nh_.subscribe("/gazebo/ledMode/"+device_id, 1, &UvCam::ledModeCallback,this));
+
+    _leds_by_name_.at(link_name)->set_active(led_info->active.data);
+  }
 }
 //}
 

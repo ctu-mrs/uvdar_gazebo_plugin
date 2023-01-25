@@ -16,13 +16,47 @@
 #include <mrs_msgs/SetInt.h>
 #include <mrs_msgs/Float64Srv.h>
 
+namespace uuid {
+    static std::random_device              rd;
+    static std::mt19937                    gen(rd());
+    static std::uniform_int_distribution<> dis(0, 15);
+    static std::uniform_int_distribution<> dis2(8, 11);
+
+    std::string generate_uuid_v4() {
+        std::stringstream ss;
+        int i;
+        ss << std::hex;
+        for (i = 0; i < 8; i++) {
+            ss << dis(gen);
+        }
+        ss << "_";
+        for (i = 0; i < 4; i++) {
+            ss << dis(gen);
+        }
+        ss << "_4";
+        for (i = 0; i < 3; i++) {
+            ss << dis(gen);
+        }
+        ss << "_";
+        ss << dis2(gen);
+        for (i = 0; i < 3; i++) {
+            ss << dis(gen);
+        }
+        ss << "_";
+        for (i = 0; i < 12; i++) {
+            ss << dis(gen);
+        };
+        return ss.str();
+    }
+}
 
 namespace gazebo
 {
 class UvLed : public SensorPlugin {
 private:
   ros::NodeHandle nh;
-  int             n;
+  std::string     device_id;
+  std::string     link_name;
   /* double          updatePeriod; */
   /* float           f; */
 
@@ -34,6 +68,7 @@ private:
 
   bool active = true;
 
+  std::string unique_ID;
 
   /* transport::PublisherPtr posePub; */
   ros::Publisher led_info_pub;
@@ -41,7 +76,7 @@ private:
   ros::Publisher led_mode_pub;
   /* transport::PublisherPtr statePub ; */
   gazebo::physics::WorldPtr world;
-  physics::EntityPtr        parent;
+  /* physics::EntityPtr        parent_link; */
   std::thread               pub_thread;
   sensors::SensorPtr        sensor;
   /* ignition::math::Pose3d                pose; */
@@ -49,7 +84,6 @@ private:
   uvdar_gazebo_plugin::LedInfo      led_info;
   uvdar_gazebo_plugin::LedMessage   led_msg;
   std::mutex                   pubMutex;
-  std::string                  link_name;
 
   ros::ServiceServer sequence_setter_;
   ros::ServiceServer frequency_setter_;
@@ -62,19 +96,25 @@ public:
 
     std::cout << "Loading UV LED" << std::endl;
 
+    unique_ID = uuid::generate_uuid_v4(); // to ensure that each name is unique in the simulation
+
     this->sensor           = _sensor;
     world                  = physics::get_world("default");
-    std::string parentName = sensor->ParentName();
-    parent                 = world->EntityByName(parentName);
+    link_name = sensor->ParentName();
+    /* parent_link                 = world->EntityByName(parentName); */
 
-    if (_sdf->HasElement("link_name")) {
-      link_name = _sdf->GetElement("link_name")->Get<std::string>();
-      led_info_pub    = nh.advertise<uvdar_gazebo_plugin::LedInfo>("/gazebo/ledProperties/" + link_name, 1, true);
-      led_message_pub    = nh.advertise<uvdar_gazebo_plugin::LedMessage>("/gazebo/ledMessage/" + link_name, 1, true);
-      led_mode_pub = nh.advertise<std_msgs::Int32>("/gazebo/ledMode/" + link_name, 1, true);
+    if (_sdf->HasElement("device_id")) {
+      device_id = _sdf->GetElement("device_id")->Get<std::string>();
+      std::cout << "LED device_id is " << device_id << std::endl;
     } else {
-      std::cout << "Could not find the link name of the LED" << std::endl;
+
+      device_id = uuid::generate_uuid_v4();  
+      std::cout << "LED device_id defaulting to " + device_id << std::endl;
     }
+
+    led_info_pub    = nh.advertise<uvdar_gazebo_plugin::LedInfo>("/gazebo/ledProperties", 1, true);
+    led_message_pub    = nh.advertise<uvdar_gazebo_plugin::LedMessage>("/gazebo/ledMessage/" + device_id, 1, true);
+    led_mode_pub = nh.advertise<std_msgs::Int32>("/gazebo/ledMode/" + device_id, 1, true);
 
     if (_sdf->HasElement("signal_id")) {
       ID = _sdf->GetElement("signal_id")->Get<int>();
@@ -94,13 +134,6 @@ public:
       fm = fs;
     }
 
-    if (_sdf->HasElement("number")) {
-      n = _sdf->GetElement("number")->Get<int>();
-      std::cout << "LED number is " << n << std::endl;
-    } else {
-      std::cout << "LED number defaulting to -1" << std::endl;
-      n = -1;  // camera framerate
-    }
 
     /* updatePeriod = 1.0; */
     /* if (_sdf->HasElement("updateRate")) { */
@@ -116,16 +149,16 @@ public:
 
     char poseTopicName[30];
     std::sprintf(poseTopicName, "~/uvleds/pose");
-    sequence_setter_ = nh.advertiseService(("/gazebo/ledSignalSetter/" + link_name).c_str(), &UvLed::callbackSetSequence, this);
-    frequency_setter_ = nh.advertiseService(("/gazebo/ledFrequencySetter/" + link_name).c_str(), &UvLed::callbackSetFrequency, this);
-    mode_setter_ = nh.advertiseService(("/gazebo/ledModeSetter/" + link_name).c_str(), &UvLed::callbackSetMode, this);
-    message_sender_ = nh.advertiseService(("/gazebo/ledMessageSender/" + link_name).c_str(), &UvLed::callbackSendMessage, this);
-    active_setter_ = nh.advertiseService(("/gazebo/ledActiveSetter/" + link_name).c_str(), &UvLed::callbackSetActive, this);
+    sequence_setter_ = nh.advertiseService(("/gazebo/ledSignalSetter/" + device_id).c_str(), &UvLed::callbackSetSequence, this);
+    frequency_setter_ = nh.advertiseService(("/gazebo/ledFrequencySetter/" + device_id).c_str(), &UvLed::callbackSetFrequency, this);
+    mode_setter_ = nh.advertiseService(("/gazebo/ledModeSetter/" + device_id).c_str(), &UvLed::callbackSetMode, this);
+    message_sender_ = nh.advertiseService(("/gazebo/ledMessageSender/" + device_id).c_str(), &UvLed::callbackSendMessage, this);
+    active_setter_ = nh.advertiseService(("/gazebo/ledActiveSetter/" + device_id).c_str(), &UvLed::callbackSetActive, this);
   }
 
 public:
   void Init() {
-    std::cout << "Initializing UV LED " << n << std::endl;
+    std::cout << "Initializing UV LED " << device_id << std::endl;
     this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
     std::cout << "Sending LED data" << std::endl;
     publishData();
@@ -228,7 +261,7 @@ private:
   /*       publishData() */
   /*       // std::cout << "Publishing base frequency, UVDAR in localization mode" << std::endl; */
   /*     } else { */
-  /*       // std::cout << "Ignoring base frequency, UVDAR in RXTX mode" << link_name << std::endl; */
+  /*       // std::cout << "Ignoring base frequency, UVDAR in RXTX mode" << device_id << std::endl; */
   /*     } */
   /*     r.sleep(); */
   /*   } */
@@ -239,6 +272,8 @@ private:
         led_info.mes_bitrate.data = fm;
         led_info.ID.data = ID;
         led_info.active.data = active;
+        led_info.device_id.data = device_id;
+        led_info.link_name.data = link_name;
         led_info_pub.publish(led_info);
   }
 
