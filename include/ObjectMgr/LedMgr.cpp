@@ -14,8 +14,8 @@ LedMgr::LedMgr(
   return;
 }
 
-void LedMgr::update_link_pose(const std::string& link_name, const geometry_msgs::Pose& i_pose) {
-  ObjectMgr::update_link_pose(link_name, i_pose);
+void LedMgr::update_link_pose(const std::string& led_name, const geometry_msgs::Pose& i_pose) {
+  ObjectMgr::update_link_pose(led_name, i_pose);
 }
 
 /* void LedMgr::update_frequency(double i_frequency){ /1* std::cout << "setting frequency to " << i_frequency << std::endl; *1/ */
@@ -26,7 +26,8 @@ void LedMgr::update_link_pose(const std::string& link_name, const geometry_msgs:
 /*   frequency_initialized = true; */
 /* } */
 
-void LedMgr::update_data(std::vector<bool> i_sequence, double i_seq_bit_rate, double i_mes_bit_rate){
+void LedMgr::update_data(std::string i_link_name, std::vector<bool> i_sequence, double i_seq_bit_rate, double i_mes_bit_rate){
+  link_name = i_link_name;
   sequence = i_sequence;
   /* if (diag_seq.length() < (int)(sequence.size())) */
   diag_seq = "";

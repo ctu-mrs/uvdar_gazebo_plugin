@@ -63,6 +63,8 @@ int get_ocam_model(struct ocam_model *myocam_model, char *filename) {
   std::ignore = fgets(buf, CMV_MAX_BUF, f);
   std::ignore = fscanf(f, "\n");
   std::ignore = fscanf(f, "%d %d", height, width);
+  printf("WIDTH: %d", *width);
+  printf("HEIGHT: %d", *height);
 
   // Open file
   if (feof(f) || ferror(f)) {
