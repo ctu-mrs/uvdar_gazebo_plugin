@@ -108,12 +108,15 @@ private:
   std::vector<ros::Subscriber> ledModeSubscribers;
 
   std::string filename;
+  std::string publish_topic;
 
   std::unordered_map<std::string, std::shared_ptr<LedMgr> > _leds_by_name_;
 
   std::vector<CameraData> cameras;
   // Pointer to the update event connection
   event::ConnectionPtr updateConnection;
+
+  CameraProps camera_props;
 
   /* ros::Time last_link_received_; */
 
@@ -200,9 +203,24 @@ public:
     nh_ = ros::NodeHandle("~");
 
 
+    if (get_ocam_model(&oc_model, (char*)(filename.c_str())) < 0){
+      std::cerr << "UVCAM " << " failed to open calibration file " << filename << std::endl;
+      return;
+    }
 
-    char poseTopicName[30];
-    std::sprintf(poseTopicName, "~/uvleds/pose");
+    /* parseSequenceFile("/home/viktor/mrs_workspace/src/uav_modules/ros_packages/uvdar_meta/uvdar_core/config/BlinkingSequence-8-3-3-2-8.txt"); */
+    parseSequenceFile(ros::package::getPath("uvdar_core")+"/config/selected.txt");
+    /* cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0))); */
+    this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
+
+    /* char poseTopicName[30]; */
+    /* std::sprintf(poseTopicName, "~/uvleds/pose"); */
+
+    if (_sdf->HasElement("camera_publish_topic")) {
+      publish_topic = _sdf->GetElement("camera_publish_topic")->Get<std::string>();
+    } else {
+      publish_topic = parentName.substr(0, parentName.find(":")) + "/uvdar_bluefox/image_raw";
+    }
 
     ledInfoSubscriber = nh_.subscribe("/gazebo/ledProperties", 20, &UvCam::ledInfoCallback,this);
 
@@ -217,23 +235,11 @@ public:
     linkSub = nh_.subscribe(so);
     /* linkSub = nh.subscribe("/gazebo/link_states", 1, &UvCam::linkCallback, this); */
 
-
-    /* node->Init(); */
-
-    char *dummy = NULL;
-    int   zero  = 0;
-    std::string publish_topic;
-    if (_sdf->HasElement("camera_publish_topic")) {
-      publish_topic = _sdf->GetElement("camera_publish_topic")->Get<std::string>();
-    } else {
-      publish_topic = parentName.substr(0, parentName.find(":")) + "/uvdar_bluefox/image_raw";
-    }
-
-    CameraProps cam_props = {.scoped_name=_parent->ScopedName(), .parent_name=_parent->ParentName(), .sensor_id=_parent->Id(), .publish_topic=publish_topic, .f=f, .occlusions=_use_occlusions};
-    auto preferredCamera = findExistingEquivalentCamera(cam_props);
+    camera_props = {.scoped_name=_parent->ScopedName(), .parent_name=_parent->ParentName(), .sensor_id=_parent->Id(), .publish_topic=publish_topic, .f=f, .occlusions=_use_occlusions};
+    auto preferredCamera = findExistingEquivalentCamera(camera_props);
     if (preferredCamera) {
       std::cout << "UVCAM " << _parent->Name() << " will yield rendering to " << preferredCamera.value().scoped_name << "." << std::endl;
-      if (!yieldRendering(cam_props)){
+      if (!yieldRendering(camera_props)){
       std::cout << "UVCAM " << _parent->Name() << " failed to yield rendering!" << std::endl;
       }
     } else{
@@ -242,10 +248,12 @@ public:
       nh_.setParam(CAM_EXISTENCE_HEADER+_parent->Name()+"/publish_topic", publish_topic);
       nh_.setParam(CAM_EXISTENCE_HEADER+_parent->Name()+"/f", f);
       nh_.setParam(CAM_EXISTENCE_HEADER+_parent->Name()+"/occlusions", _use_occlusions);
-      /* CameraProps cam_props = {.name=_parent->Name(), .scoped_name=_parent->ScopedName(), .publish_topic=publish_topic, .f=f, .occlusions=_use_occlusions}; */
+      /* CameraProps camera_props = {.name=_parent->Name(), .scoped_name=_parent->ScopedName(), .publish_topic=publish_topic, .f=f, .occlusions=_use_occlusions}; */
 
+      char *dummy = NULL;
+      int   zero  = 0;
       ros::init(zero, &dummy, "uvdar_bluefox_emulator");
-      addCamera(cam_props, true);
+      addCamera(camera_props, true);
 
       yield_sub = nh_.subscribe(CAM_YIELD_TOPIC, 10, &UvCam::yieldCallback, this);
 
@@ -262,18 +270,15 @@ public:
     /* for (int i    = 0; i++; i < 20) */
     /* ledState[i] = false; */
 
-    if (get_ocam_model(&oc_model, (char*)(filename.c_str())) < 0){
-      std::cerr << "UVCAM " << " failed to open calibration file " << filename << std::endl;
-      return;
-    }
-
-    /* parseSequenceFile("/home/viktor/mrs_workspace/src/uav_modules/ros_packages/uvdar_meta/uvdar_core/config/BlinkingSequence-8-3-3-2-8.txt"); */
-    parseSequenceFile(ros::package::getPath("uvdar_core")+"/config/selected.txt");
-    /* cvimg                  = cv_bridge::CvImage(std_msgs::Header(), "mono8", cv::Mat(oc_model.height, oc_model.width, CV_8UC1, cv::Scalar(0))); */
-    this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvCam::OnUpdate, this));
 
     transfer_thread            = std::thread(&UvCam::TransferThread, this);
     link_callback_thread   = std::thread(&UvCam::LinkQueueThread, this);
+
+
+
+    /* node->Init(); */
+
+
   }
   //}
 
