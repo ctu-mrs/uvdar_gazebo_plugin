@@ -38,6 +38,7 @@ catkin_package(
 
 
 find_package(gazebo REQUIRED)
+ign_import_target(UUID)
 find_package(roscpp REQUIRED)
 find_package(OpenCV REQUIRED HINTS /usr/local/lib)
 include_directories(${GAZEBO_INCLUDE_DIRS} ${OPENCV_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS} include)
