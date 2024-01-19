@@ -18,6 +18,8 @@ set(CATKIN_DEPENDENCIES
   std_msgs
   tf
   uvdar_core
+  gazebo_plugins
+  gazebo_ros
   )
 
 set(LIBRARIES
