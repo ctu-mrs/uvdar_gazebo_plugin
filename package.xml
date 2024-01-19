@@ -12,19 +12,18 @@
   <buildtool_depend>catkin</buildtool_depend>
 
   <depend>cv_bridge</depend>
-  <depend>image_transport</depend>
   <depend>gazebo</depend>
-  <depend>roscpp</depend>
-  <depend>std_msgs</depend>
-  <depend>sensor_msgs</depend>
-  <depend>mrs_msgs</depend>
-  <depend>message_runtime</depend>
+  <depend>image_transport</depend>
   <depend>message_generation</depend>
-
+  <depend>message_runtime</depend>
+  <depend>mrs_msgs</depend>
+  <depend>roscpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf</depend>
   <depend>uvdar_core</depend>
 
   <export>
-    <!-- Other tools can request additional information be placed here -->
   </export>
 
 </package>
