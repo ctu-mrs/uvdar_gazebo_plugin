@@ -49,7 +49,6 @@ catkin_package(
    LIBRARIES ${LIBRARIES}
 )
 
-
 find_package(gazebo REQUIRED)
 
 ign_import_target(UUID)
@@ -119,9 +118,5 @@ install(TARGETS ${LIBRARIES}
   )
 
 install(DIRECTORY msg
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-  )
-
-install(DIRECTORY config
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
   )
