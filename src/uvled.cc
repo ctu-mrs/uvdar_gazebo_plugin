@@ -274,6 +274,8 @@ private:
         led_info.active.data = active;
         led_info.device_id.data = device_id;
         led_info.link_name.data = link_name;
+        
+        std::cout << "Sending LED info message..." << std::endl;
         led_info_pub.publish(led_info);
   }
 
