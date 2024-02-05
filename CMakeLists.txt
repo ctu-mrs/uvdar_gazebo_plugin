@@ -20,6 +20,7 @@ set(CATKIN_DEPENDENCIES
   uvdar_core
   gazebo_plugins
   gazebo_ros
+  mrs_uav_testing
   )
 
 set(LIBRARIES
@@ -106,6 +107,16 @@ add_dependencies(uvdar_cam
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${catkin_EXPORTED_TARGETS}
   )
+
+## --------------------------------------------------------------
+## |                           Testing                          |
+## --------------------------------------------------------------
+
+if(CATKIN_ENABLE_TESTING)
+
+  add_subdirectory(test)
+
+endif()
 
 ## --------------------------------------------------------------
 ## |                           install                          |
