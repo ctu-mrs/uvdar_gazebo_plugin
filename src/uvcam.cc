@@ -521,8 +521,10 @@ void ledInfoCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>
     ledMessageSubscribers.push_back(nh_.subscribe("/gazebo/ledMessage/"+device_id, 1, &UvCam::ledMessageCallback,this));
     ledModeSubscribers.push_back(nh_.subscribe("/gazebo/ledMode/"+device_id, 1, &UvCam::ledModeCallback,this));
 
-    _leds_by_name_.at(link_name)->set_active(led_info->active.data);
   }
+
+  std::cout << "Setting the state of LED " << link_name << " to " << (led_info->active.data?"ON":"OFF") << std::endl;
+  _leds_by_name_.at(link_name)->set_active(led_info->active.data);
 }
 //}
 
