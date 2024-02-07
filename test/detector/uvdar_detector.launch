@@ -14,7 +14,7 @@
   <arg name="left_camera_name" default="mv_$(arg left)"/>
   <arg name="right_camera_name" default="mv_$(arg right)"/>
 
-  <arg name="calibrations_folder" default="$(find uvdar_core)/test/detector/masks"/>
+  <arg name="calibrations_folder" default="$(find uvdar_gazebo_plugin)/test/detector/masks"/>
 
 
   <!-- Node Settings -->

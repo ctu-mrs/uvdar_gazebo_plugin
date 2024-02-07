@@ -15,7 +15,7 @@
   <include file="$(find mrs_uav_testing)/launch/gazebo_simulator.launch" />
 
 
-  <include file="$(find uvdar_core)/test/$(arg test_name)/uvdar_$(arg test_name).launch">
+  <include file="$(find uvdar_gazebo_plugin)/test/$(arg test_name)/uvdar_$(arg test_name).launch">
     <arg name="UAV_NAME" default="uav1" />
     <remap from="~points_seen_left" to="/$(arg UAV_NAME)/uvdar/points_seen_left"/>
     <remap from="~points_seen_right" to="/$(arg UAV_NAME)/uvdar/points_seen_right"/>
