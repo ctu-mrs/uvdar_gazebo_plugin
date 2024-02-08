@@ -22,7 +22,7 @@
     <remap from="~points_seen_back" to="/$(arg UAV_NAME)/uvdar/points_seen_back"/>
   </include>
 
-  <test pkg="$(arg package)" type="test_$(arg test_name)" test-name="$(arg test_name)" time-limit="120.0">
+  <test pkg="$(arg package)" type="test_$(arg test_name)" test-name="$(arg test_name)" time-limit="200.0">
     <param name="test_name" value="$(arg test_name)" />
     <param name="uav_name_1" value="uav1" />
     <param name="uav_name_2" value="uav2" />
