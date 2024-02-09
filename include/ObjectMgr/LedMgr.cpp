@@ -101,6 +101,8 @@ char toHex(int input){
 }
 
 bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
+  double corrected_time = nowTime + timing_offset;
+
   if (!m_pose_initialized)
     return false;
 
@@ -116,7 +118,7 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
       return true;
     }
 
-    if (fmod(nowTime, T) > Th){
+    if (fmod(corrected_time, T) > Th){
       output = m_pose;
       return true;
     }
@@ -133,7 +135,17 @@ bool LedMgr::get_pose(geometry_msgs::Pose &output, double nowTime) {
       return false;
     }
 
-    int seq_index = (int)(fmod(nowTime, seq_duration)*seq_bit_rate);
+    //procedure to correct the effect of Gazebo's discrete sampling causing dithering in sampling of the blinking signal
+    double gz_step = 1.0/250.0;
+    int cur_index = (int)(fmod(corrected_time, seq_duration)*seq_bit_rate);
+    int prev_index = (int)(fmod(corrected_time-gz_step, seq_duration)*seq_bit_rate);
+    if (cur_index != prev_index){ //we are less than one Gazebo time step after a bit edge
+      timing_offset += (0.5/seq_bit_rate); //therefore, move the sampling by half of the bit period, so the floating sample edge is closer to the center of the bit period
+      corrected_time += (0.5/seq_bit_rate);
+      std::cout << "Moving sample edge!" << std::endl;
+    }
+    int seq_index = (int)(fmod(corrected_time, seq_duration)*seq_bit_rate);
+
     seq_index = std::min((int)(sequence.size())-1,seq_index);//sanitization
     if (sequence[seq_index]){
       output = m_pose;

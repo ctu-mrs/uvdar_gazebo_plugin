@@ -30,6 +30,7 @@ class LedMgr : public ObjectMgr
     virtual ~LedMgr() {};
     std::string get_device_id(){return device_id;};
     void set_device_id(std::string i_device_id){device_id = i_device_id;};
+    std::string link_name;
   private:
     void update_timing(double i_seq_bit_rate, double i_mes_bit_rate);
 
@@ -37,7 +38,6 @@ class LedMgr : public ObjectMgr
 
     int mode; //0 - static frequency, 1 - selected sequences
 
-    std::string link_name;
     std::string device_id;
     std::vector<bool> sequence;
     std::vector<bool> message;
@@ -54,6 +54,8 @@ class LedMgr : public ObjectMgr
     bool sequence_initialized = false;
     bool message_initialized = false;
 
+
+    double timing_offset = 0.0;
 
 
     char diag_signal[DIAG_SIGNAL_LENGTH+1];
