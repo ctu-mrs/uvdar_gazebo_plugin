@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <mrs_uav_testing/test_generic.h>
+#include <mrs_uav_gazebo_testing/test_gazebo_generic.h>
 #include <uvdar_core/ImagePointsWithFloatStamped.h>
 
 #define DEF_IMG_WIDTH 752
@@ -15,7 +15,7 @@ struct point {
   }
 };
 
-class Tester : public mrs_uav_testing::TestGeneric {
+class Tester : public mrs_uav_gazebo_testing::TestGenericGZ {
 
 private:
   std::string _uav_name_1_, _uav_name_2_;
@@ -38,25 +38,25 @@ public:
 
 bool Tester::test() {
 
-  auto [uh1o, uh1_message] = makeUAV(_uav_name_1_, false);
+  auto [uh1o, uh1_message] = getUAVHandler(_uav_name_1_, false);
   if (uh1o == std::nullopt){
    ROS_ERROR("[%s]: Failed to create uav %s: %s", ros::this_node::getName().c_str(), _uav_name_.c_str(), uh1_message.c_str());
     return false;
   }
   auto uh1 = *std::move(uh1o);
 
-  auto [uh2o, uh2_message] = makeUAV(_uav_name_2_, false);
+  auto [uh2o, uh2_message] = getUAVHandler(_uav_name_2_, false);
   if (uh2o == std::nullopt){
     ROS_ERROR("[%s]: Failed to create uav %s: %s", ros::this_node::getName().c_str(), _uav_name_.c_str(), uh2_message.c_str());
     return false;
   }
   auto uh2 = *std::move(uh2o);
 
-  if (isGazeboSimulation()){
+  {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Spawning " << _uav_name_1_);
-    uh1.spawn(_gazebo_spawner_params_1_);
+    uh1->spawn(_gazebo_spawner_params_1_);
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Spawning " << _uav_name_2_);
-    uh2.spawn(_gazebo_spawner_params_2_);
+    uh2->spawn(_gazebo_spawner_params_2_);
   }
 
   {
@@ -84,12 +84,12 @@ bool Tester::test() {
 
 
   {
-    auto [success, message] = uh1.moveTo(0,0,0,0);
+    auto [success, message] = uh1->moveTo(0,0,0,0);
     if (!success)
       return false;
   }
   {
-    auto [success, message] = uh2.moveTo(5,0,0,0);
+    auto [success, message] = uh2->moveTo(5,0,0,0);
     if (!success)
       return false;
   }
@@ -117,7 +117,7 @@ bool Tester::test() {
 
 
   {
-    auto [success, message] = uh2.moveTo(-5,0,0,0);
+    auto [success, message] = uh2->moveTo(-5,0,0,0);
     if (!success)
       return false;
   }
@@ -144,7 +144,7 @@ bool Tester::test() {
 
 
   {
-    auto [success, message] = uh2.moveTo(3,-4,0,0);
+    auto [success, message] = uh2->moveTo(3,-4,0,0);
     if (!success)
       return false;
   }
@@ -176,7 +176,7 @@ bool Tester::test() {
 
   return true;
 }
-Tester::Tester() : mrs_uav_testing::TestGeneric() {
+Tester::Tester() : mrs_uav_gazebo_testing::TestGenericGZ() {
 
 
   pl_ = std::make_shared<mrs_lib::ParamLoader>(nh_, "Test");
