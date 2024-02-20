@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <mrs_uav_gazebo_testing/test_gazebo_generic.h>
+#include <mrs_uav_gazebo_testing/test_generic.h>
 #include <uvdar_core/ImagePointsWithFloatStamped.h>
 
 #define DEF_IMG_WIDTH 752
@@ -15,7 +15,7 @@ struct point {
   }
 };
 
-class Tester : public mrs_uav_gazebo_testing::TestGenericGZ {
+class Tester : public mrs_uav_gazebo_testing::TestGeneric {
 
 private:
   std::string _uav_name_1_, _uav_name_2_;
@@ -176,7 +176,7 @@ bool Tester::test() {
 
   return true;
 }
-Tester::Tester() : mrs_uav_gazebo_testing::TestGenericGZ() {
+Tester::Tester() : mrs_uav_gazebo_testing::TestGeneric() {
 
 
   pl_ = std::make_shared<mrs_lib::ParamLoader>(nh_, "Test");
