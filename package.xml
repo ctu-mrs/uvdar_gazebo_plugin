@@ -25,6 +25,8 @@
   <depend>tf</depend>
   <depend>uvdar_core</depend>
   <depend>mrs_uav_gazebo_testing</depend>
+  <depend>mrs_uav_gazebo_simulation</depend>
+  <depend>mrs_uav_system</depend>
 
   <export>
     <gazebo_ros plugin_path="${prefix}/lib"/>
