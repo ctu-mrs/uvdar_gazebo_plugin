@@ -271,7 +271,9 @@ public:
     /* ledState[i] = false; */
 
 
+    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Starting transfer thread");
     transfer_thread            = std::thread(&UvCam::TransferThread, this);
+    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Starting callback thread");
     link_callback_thread   = std::thread(&UvCam::LinkQueueThread, this);
 
 
@@ -288,6 +290,7 @@ private:
     /* clock_t begin, end; */
     /* clock_t begin_p, end_p; */
     /* double  elapsedTime; */
+    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: InitForThread");
     pengine->InitForThread();
 
     /* ros::Rate rt(f + ((double(rand()%100)/50.0)-1.0)); //to simulate the possible difference between the camera framerate and the blinking generator bit rate. This has to be done here, since LEDs on a single UAV are always synchronized w.r.t. each other. */
@@ -298,6 +301,7 @@ private:
     sensor_msgs::PointCloud msg_ptcl;
     std::unordered_map<std::string, std::shared_ptr<LedMgr>> leds_by_name_local;
     /* std::pair<std::string, std::shared_ptr<LedMgr> > led; */
+    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: loop start");
     while (ros::ok()){
       /* begin         = std::clock(); */
       //CHECK: Optimize the following
@@ -337,10 +341,12 @@ private:
             }
           }
         }
+    /* ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: publishing"); */
         cam.virtual_points_publisher.publish(msg_ptcl);
         /* end         = std::clock(); */
         /* elapsedTime = double(end - begin) / CLOCKS_PER_SEC; */
         /* std::cout << "UV CAM: Drawing took : " << elapsedTime << " s" << std::endl; */
+    /* ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: loop end"); */
       }
       rt.sleep();
     }

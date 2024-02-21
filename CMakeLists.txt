@@ -20,7 +20,7 @@ set(CATKIN_DEPENDENCIES
   uvdar_core
   gazebo_plugins
   gazebo_ros
-  mrs_uav_testing
+  mrs_uav_gazebo_testing
   )
 
 set(LIBRARIES

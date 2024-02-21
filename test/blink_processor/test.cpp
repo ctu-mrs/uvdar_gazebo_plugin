@@ -9,9 +9,10 @@
 struct point {
   double x;
   double y;
+  int ID;
 
   std::string to_string(){
-    return "[" + std::to_string(x) +":"+ std::to_string(y)+"]";
+    return "[" + std::to_string(x) +":"+ std::to_string(y)+"-ID:"+std::to_string(ID)+"]";
   }
 };
 
@@ -21,7 +22,7 @@ private:
   std::string _uav_name_1_, _uav_name_2_;
   std::string _gazebo_spawner_params_1_, _gazebo_spawner_params_2_;
 
-  mrs_lib::SubscribeHandler<uvdar_core::ImagePointsWithFloatStamped> sh_detector_handler_left_, sh_detector_handler_right_, sh_detector_handler_back_;
+  mrs_lib::SubscribeHandler<uvdar_core::ImagePointsWithFloatStamped> sh_blink_handler_left_, sh_blink_handler_right_, sh_blink_handler_back_;
 public:
   Tester();
 
@@ -59,108 +60,31 @@ bool Tester::test() {
     uh2->spawn(_gazebo_spawner_params_2_);
   }
 
-  {
-    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing resolution...");
-    auto [success_l, message_l] = checkImageSize(sh_detector_handler_left_);
-    if (!success_l){
-      ROS_ERROR("[%s]: Resolution check failed for left camera!: %s", ros::this_node::getName().c_str(), message_l.c_str());
-      return false;
-    }
-    auto [success_r, message_r] = checkImageSize(sh_detector_handler_right_);
-    if (!success_r){
-      ROS_ERROR("[%s]: Resolution check failed for right camera!: %s", ros::this_node::getName().c_str(), message_r.c_str());
-      return false;
-    }
-    auto [success_b, message_b] = checkImageSize(sh_detector_handler_back_);
-    if (!success_b){
-      ROS_ERROR("[%s]: Resolution check failed for back camera!: %s", ros::this_node::getName().c_str(), message_b.c_str());
-      return false;
-    }
-
-    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing resolution done.");
-    if (!(success_l && success_r && success_b))
-      return false;
-  }
-
-
+  /* sleep(3.0); */
   {
     auto [success, message] = uh1->moveTo(0,0,0,0);
     if (!success)
       return false;
   }
   {
-    auto [success, message] = uh2->moveTo(5,0,0,0);
-    if (!success)
-      return false;
-  }
-
-  sleep(1);
-  {
-    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing point retrieval at 1. position...");
-    std::vector<std::vector<point>> test_sample = gatherObservedPoints(
-        {
-        sh_detector_handler_left_,
-        sh_detector_handler_right_,
-        sh_detector_handler_back_
-        },
-        1.0); //gather for # seconds
-    auto [success, message] = checkObservedPoints(test_sample, {
-        {{669,233},{688,234}},
-        {{59,233},{39,234}},
-        {}
-        });
-    if (!success){
-      ROS_ERROR_STREAM("[" << ros::this_node::getName().c_str() << "]: " << message);
-      return false;
-    }
-  }
-
-
-  {
-    auto [success, message] = uh2->moveTo(-5,0,0,0);
-    if (!success)
-      return false;
-  }
-  sleep(1);
-  {
-    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing point retrieval at 2. position...");
-    std::vector<std::vector<point>> test_sample = gatherObservedPoints(
-        {
-        sh_detector_handler_left_,
-        sh_detector_handler_right_,
-        sh_detector_handler_back_
-        },
-        1.0);
-    auto [success, message] = checkObservedPoints(test_sample, {
-        {},
-        {},
-        {{367,240},{367,218}}
-        });
-    if (!success){
-      ROS_ERROR_STREAM("[" << ros::this_node::getName().c_str() << "]: " << message);
-      return false;
-    }
-  }
-
-
-  {
+    /* auto [success, message] = uh2.moveTo(3,-4,0,3.14); */
     auto [success, message] = uh2->moveTo(3,-4,0,0);
     if (!success)
       return false;
   }
-  sleep(1);
+  sleep(3);
   {
-    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing point retrieval at 3. position...");
+    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing blinker retrieval...");
     std::vector<std::vector<point>> test_sample = gatherObservedPoints(
         {
-        sh_detector_handler_left_,
-        sh_detector_handler_right_,
-        sh_detector_handler_back_
+        sh_blink_handler_left_,
+        sh_blink_handler_right_,
+        sh_blink_handler_back_
         },
         1.0);
     auto [success, message] = checkObservedPoints(test_sample, {
         {},
-        {{271,233},{288,233},{300,233}},
+        {{271,233,2},{288,233,1},{300,233,3}},
         {}
         });
     if (!success){
@@ -185,9 +109,9 @@ Tester::Tester() : mrs_uav_gazebo_testing::TestGeneric() {
   pl_->loadParam("uav_name_1", _uav_name_1_, std::string());
   pl_->loadParam("uav_name_2", _uav_name_2_, std::string());
 
-  sh_detector_handler_left_ = mrs_lib::SubscribeHandler<uvdar_core::ImagePointsWithFloatStamped>(shopts_, "/"+_uav_name_1_+"/uvdar/points_seen_left");
-  sh_detector_handler_right_ = mrs_lib::SubscribeHandler<uvdar_core::ImagePointsWithFloatStamped>(shopts_, "/"+_uav_name_1_+"/uvdar/points_seen_right");
-  sh_detector_handler_back_ = mrs_lib::SubscribeHandler<uvdar_core::ImagePointsWithFloatStamped>(shopts_, "/"+_uav_name_1_+"/uvdar/points_seen_back");
+  sh_blink_handler_left_ = mrs_lib::SubscribeHandler<uvdar_core::ImagePointsWithFloatStamped>(shopts_, "/"+_uav_name_1_+"/uvdar/blinkers_seen_left");
+  sh_blink_handler_right_ = mrs_lib::SubscribeHandler<uvdar_core::ImagePointsWithFloatStamped>(shopts_, "/"+_uav_name_1_+"/uvdar/blinkers_seen_right");
+  sh_blink_handler_back_ = mrs_lib::SubscribeHandler<uvdar_core::ImagePointsWithFloatStamped>(shopts_, "/"+_uav_name_1_+"/uvdar/blinkers_seen_back");
 }
 
 std::tuple<bool, std::string>  Tester::checkImageSize(mrs_lib::SubscribeHandler<uvdar_core::ImagePointsWithFloatStamped> &sh){
@@ -220,7 +144,7 @@ std::vector<std::vector<point>> Tester::gatherObservedPoints(std::vector<std::re
         {
           for (auto pt : sh.get().getMsg()->points){
             /* ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: X: " << pt.x << "; Y: " << pt.y << "; Val: " << pt.value); */
-            output.at(i).push_back({pt.x,pt.y});
+            output.at(i).push_back({pt.x,pt.y,(int)(pt.value)});
 
           }
         }
@@ -238,6 +162,8 @@ std::tuple<bool, std::string> Tester::checkObservedPoints(std::vector<std::vecto
     return {false, "The comparison template and sensor output sample presume different number of cameras!"};
   }
 
+  int total_point_count = 0;
+  int unidentified_point_count = 0;
 
   for (int i = 0; i < (int)(comparison_templates.size()); i++){ //iterate though the template and sample sets for each camera
     std::vector<bool> template_filled(comparison_templates.at(i).size(),false); //flags checking if the current template has at least one point matching it
@@ -248,10 +174,17 @@ std::tuple<bool, std::string> Tester::checkObservedPoints(std::vector<std::vecto
       return {false, "Template expects no points for this camera, but some points were obtained!"};
 
     for (auto pt : test_sample.at(i)){ //iterate though the retrieved points for the current camera
+      total_point_count++;
+      if (pt.ID < 0){
+        unidentified_point_count++;
+        continue;
+      }
+
+
       bool match_found = false; // assume the point was not matched yet
       int j = 0;
       for (auto tmpl : comparison_templates.at(i)){ //iterate through all templates for the current camera
-        if (pointDistance(pt, tmpl) <= 2.0){ // point is close to the current template
+        if ((pointDistance(pt, tmpl) <= 2.0) && (pt.ID == tmpl.ID)){ // point is close to the current template
           match_found = true;
           template_filled.at(j) = true;
         }
@@ -259,7 +192,7 @@ std::tuple<bool, std::string> Tester::checkObservedPoints(std::vector<std::vecto
         j++;
       }
 
-      if (!match_found)
+      if ((!match_found) && (pt.ID >= 0))
         return {false, "Found a point " + pt.to_string() + " not matching any template!"};
 
     }
@@ -274,6 +207,11 @@ std::tuple<bool, std::string> Tester::checkObservedPoints(std::vector<std::vecto
 
   }
 
+  double error_ratio = ((double)(unidentified_point_count))/((double)(total_point_count));
+  ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: " << error_ratio*100.0 << "\% of points are unidentified.");
+  if (error_ratio >0.1){
+    return {false, "More than 10\% of the points are unidentified!"};
+  }
 
   return {true, "Success!"};
 }

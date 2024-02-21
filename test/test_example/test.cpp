@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <mrs_uav_testing/test_generic.h>
+#include <mrs_uav_gazebo_testing/test_generic.h>
 
 class Tester : public mrs_uav_testing::TestGeneric {
 
