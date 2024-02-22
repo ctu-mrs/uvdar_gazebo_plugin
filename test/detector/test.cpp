@@ -59,6 +59,8 @@ bool Tester::test() {
     uh2->spawn(_gazebo_spawner_params_2_);
   }
 
+  sleep(2);
+
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing resolution...");
     auto [success_l, message_l] = checkImageSize(sh_detector_handler_left_);
