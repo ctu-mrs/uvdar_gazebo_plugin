@@ -116,11 +116,12 @@ Tester::Tester() : mrs_uav_gazebo_testing::TestGeneric() {
 
 std::tuple<bool, std::string>  Tester::checkImageSize(mrs_lib::SubscribeHandler<uvdar_core::ImagePointsWithFloatStamped> &sh){
     if (sh.hasMsg()) {
-      if ( sh.getMsg()->image_width != DEF_IMG_WIDTH){ 
+      auto msg = sh.getMsg();
+      if ( msg->image_width != DEF_IMG_WIDTH){ 
         ROS_ERROR_STREAM("[" << ros::this_node::getName().c_str() << "]: The UV image width on topic " << sh.topicName() << " does not match the expected!");
         return {false, "The UV image width on topic " + sh.topicName() + " does not match the expected!"};
       }
-      if ( sh.getMsg()->image_height != DEF_IMG_HEIGHT){ 
+      if ( msg->image_height != DEF_IMG_HEIGHT){ 
         ROS_ERROR_STREAM("[" << ros::this_node::getName().c_str() << "]: The UV image height on topic " << sh.topicName() << " does not match the expected!");
         return {false, "The UV image height on topic " + sh.topicName() + " does not match the expected!"};
       }
@@ -142,7 +143,8 @@ std::vector<std::vector<point>> Tester::gatherObservedPoints(std::vector<std::re
     for (auto &sh : shs){
       if (sh.get().hasMsg()) {
         {
-          for (auto pt : sh.get().getMsg()->points){
+          auto msg = sh.get().getMsg();
+          for (auto pt : msg->points){
             /* ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: X: " << pt.x << "; Y: " << pt.y << "; Val: " << pt.value); */
             output.at(i).push_back({pt.x,pt.y,(int)(pt.value)});
 
