@@ -22,13 +22,13 @@ private:
   std::string _uav_name_1_, _uav_name_2_;
   std::string _gazebo_spawner_params_1_, _gazebo_spawner_params_2_;
 
-  mrs_lib::SubscribeHandler<sensor_msgs::PointCloud> sh_uvcam_handler_left_, sh_uvcam_handler_right_, sh_uvcam_handler_back_;
+  std::vector<mrs_lib::SubscribeHandler<sensor_msgs::PointCloud>> sh_uvcam_handlers_;
 public:
   Tester();
 
 
   std::tuple<bool, std::string>  checkMetaDataPresence(mrs_lib::SubscribeHandler<sensor_msgs::PointCloud> &sh);
-  std::vector<std::vector<point>> gatherObservedPoints(std::vector<std::reference_wrapper<mrs_lib::SubscribeHandler<sensor_msgs::PointCloud>>> shs, double duration_seconds);
+  std::vector<std::vector<point>> gatherObservedPoints(double duration_seconds);
   std::tuple<bool, std::string> checkObservedPoints(std::vector<std::vector<point>> test_sample, std::vector<std::vector<point>> comparison_templates);
 
   double pointDistance(point a, point b);
@@ -55,17 +55,17 @@ bool Tester::test() {
 
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing metadata generation...");
-    auto [success_l, message_l] = checkMetaDataPresence(sh_uvcam_handler_left_);
+    auto [success_l, message_l] = checkMetaDataPresence(sh_uvcam_handlers_.at(0));
     if (!success_l){
       ROS_ERROR("[%s]: Metadata generation check failed for left camera!: %s", ros::this_node::getName().c_str(), message_l.c_str());
       return false;
     }
-    auto [success_r, message_r] = checkMetaDataPresence(sh_uvcam_handler_right_);
+    auto [success_r, message_r] = checkMetaDataPresence(sh_uvcam_handlers_.at(1));
     if (!success_r){
       ROS_ERROR("[%s]: Metadata generation check failed for right camera!: %s", ros::this_node::getName().c_str(), message_r.c_str());
       return false;
     }
-    auto [success_b, message_b] = checkMetaDataPresence(sh_uvcam_handler_back_);
+    auto [success_b, message_b] = checkMetaDataPresence(sh_uvcam_handlers_.at(2));
     if (!success_b){
       ROS_ERROR("[%s]: Metadata generation check failed for back camera!: %s", ros::this_node::getName().c_str(), message_b.c_str());
       return false;
@@ -106,13 +106,7 @@ bool Tester::test() {
   sleep(1);
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing point retrieval at 1. position...");
-    std::vector<std::vector<point>> test_sample = gatherObservedPoints(
-        {
-        sh_uvcam_handler_left_,
-        sh_uvcam_handler_right_,
-        sh_uvcam_handler_back_
-        },
-        1.0); //gather for # seconds
+    std::vector<std::vector<point>> test_sample = gatherObservedPoints(1.0); //gather for # seconds
     auto [success, message] = checkObservedPoints(test_sample, {
 
         {{669.72,233.98, 0.98},{688.90,234.12, 0.98}},
@@ -135,13 +129,7 @@ bool Tester::test() {
   sleep(1);
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing point retrieval at 2. position...");
-    std::vector<std::vector<point>> test_sample = gatherObservedPoints(
-        {
-        sh_uvcam_handler_left_,
-        sh_uvcam_handler_right_,
-        sh_uvcam_handler_back_
-        },
-        1.0); //gather for # seconds
+    std::vector<std::vector<point>> test_sample = gatherObservedPoints(1.0); //gather for # seconds
     auto [success, message] = checkObservedPoints(test_sample, {
         {{-119.95, 236.41, 0.80}, {-104.16, 236.37, 0.56}, {-104.64, 236.38, 0.80}, {-94.56, 235.70, 0.56}},
         {{823.36, 235.78, 0.80}, {839.33, 236.51, 0.56}, {838.85, 236.50, 0.80}, {848.49, 236.28, 0.56}},
@@ -170,9 +158,9 @@ Tester::Tester() : mrs_uav_gazebo_testing::TestGeneric() {
   pl_->loadParam("uav_name_1", _uav_name_1_, std::string());
   pl_->loadParam("uav_name_2", _uav_name_2_, std::string());
 
-  sh_uvcam_handler_left_ = mrs_lib::SubscribeHandler<sensor_msgs::PointCloud>(shopts_, "/gazebo/"+_uav_name_1_+"/uvdar_bluefox_left/image_raw");
-  sh_uvcam_handler_right_ = mrs_lib::SubscribeHandler<sensor_msgs::PointCloud>(shopts_, "/gazebo/"+_uav_name_1_+"/uvdar_bluefox_right/image_raw");
-  sh_uvcam_handler_back_ = mrs_lib::SubscribeHandler<sensor_msgs::PointCloud>(shopts_, "/gazebo/"+_uav_name_1_+"/uvdar_bluefox_back/image_raw");
+  sh_uvcam_handlers_.push_back(mrs_lib::SubscribeHandler<sensor_msgs::PointCloud>(shopts_, "/gazebo/"+_uav_name_1_+"/uvdar_bluefox_left/image_raw"));
+  sh_uvcam_handlers_.push_back(mrs_lib::SubscribeHandler<sensor_msgs::PointCloud>(shopts_, "/gazebo/"+_uav_name_1_+"/uvdar_bluefox_right/image_raw"));
+  sh_uvcam_handlers_.push_back(mrs_lib::SubscribeHandler<sensor_msgs::PointCloud>(shopts_, "/gazebo/"+_uav_name_1_+"/uvdar_bluefox_back/image_raw"));
 }
 
 std::tuple<bool, std::string>  Tester::checkMetaDataPresence(mrs_lib::SubscribeHandler<sensor_msgs::PointCloud> &sh){
@@ -183,19 +171,20 @@ std::tuple<bool, std::string>  Tester::checkMetaDataPresence(mrs_lib::SubscribeH
     return {true, "Topic " + sh.topicName() + " generates data."};
 }
 
-std::vector<std::vector<point>> Tester::gatherObservedPoints(std::vector<std::reference_wrapper<mrs_lib::SubscribeHandler<sensor_msgs::PointCloud>>> shs, double duration_seconds){
+std::vector<std::vector<point>> Tester::gatherObservedPoints(double duration_seconds){
   std::vector<std::vector<point>>  output;
-  for ([[maybe_unused]] auto& sh : shs){
+  for ([[maybe_unused]] auto& sh : sh_uvcam_handlers_){
     output.push_back({});
   }
   ros::Time init_time = ros::Time::now();
   while ((ros::Time::now() - init_time).toSec() < duration_seconds) {
     int i = 0; 
-    for (auto &sh : shs){
-      if (sh.get().hasMsg()) {
+    for (auto &sh : sh_uvcam_handlers_){
+      if (sh.hasMsg()) {
         {
-          for (auto pt : sh.get().getMsg()->points){
-            /* ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: X: " << pt.x << "; Y: " << pt.y << "; Val: " << pt.value); */
+          auto msg = sh.getMsg();
+          for (auto &pt : msg->points){
+            /* ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: CAM: " << i << ": X: " << pt.x << "; Y: " << pt.y << "; S: " << pt.z); */
             output.at(i).push_back({pt.x,pt.y,pt.z});
 
           }

@@ -1,5 +1,8 @@
 get_filename_component(TEST_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
 
+# add_definitions(-fsanitize=address,undefined)
+# add_definitions(-fsanitize=address)
+
 catkin_add_executable_with_gtest(test_${TEST_NAME}
   test.cpp
   )
