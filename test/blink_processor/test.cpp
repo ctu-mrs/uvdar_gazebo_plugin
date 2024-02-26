@@ -141,7 +141,7 @@ std::vector<std::vector<point>> Tester::gatherObservedPoints(std::vector<std::re
   while ((ros::Time::now() - init_time).toSec() < duration_seconds) {
     int i = 0; 
     for (auto &sh : shs){
-      if (sh.get().hasMsg()) {
+      if (sh.get().newMsg()) {
         {
           auto msg = sh.get().getMsg();
           for (auto pt : msg->points){

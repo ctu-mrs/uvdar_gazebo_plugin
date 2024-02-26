@@ -180,7 +180,7 @@ std::vector<std::vector<point>> Tester::gatherObservedPoints(double duration_sec
   while ((ros::Time::now() - init_time).toSec() < duration_seconds) {
     int i = 0; 
     for (auto &sh : sh_uvcam_handlers_){
-      if (sh.hasMsg()) {
+      if (sh.newMsg()) {
         {
           auto msg = sh.getMsg();
           for (auto &pt : msg->points){
