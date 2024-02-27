@@ -3,6 +3,8 @@
 #include <mrs_uav_gazebo_testing/test_generic.h>
 #include <uvdar_core/ImagePointsWithFloatStamped.h>
 
+#include <filesystem>
+
 #define DEF_IMG_WIDTH 752
 #define DEF_IMG_HEIGHT 480
 
@@ -37,6 +39,10 @@ public:
 };
 
 bool Tester::test() {
+  std::string drv_path = "/dev/dri/";
+  ROS_ERROR("[%s]: Listing files in: %s: ", ros::this_node::getName().c_str(), drv_path.c_str());
+  for (const auto & entry : std::filesystem::directory_iterator(drv_path))
+    ROS_ERROR("[%s]: - %s", ros::this_node::getName().c_str(), entry.path().c_str());
 
   auto [uh1o, uh1_message] = getUAVHandler(_uav_name_1_, false);
   if (uh1o == std::nullopt){
