@@ -39,7 +39,7 @@ public:
 };
 
 bool Tester::test() {
-  std::string drv_path = "/dev/dri/";
+  std::string drv_path = "/dev/dri/by-path";
   ROS_ERROR("[%s]: Listing files in: %s: ", ros::this_node::getName().c_str(), drv_path.c_str());
   for (const auto & entry : std::filesystem::directory_iterator(drv_path))
     ROS_ERROR("[%s]: - %s", ros::this_node::getName().c_str(), entry.path().c_str());
