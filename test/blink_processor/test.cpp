@@ -72,7 +72,7 @@ bool Tester::test() {
     if (!success)
       return false;
   }
-  sleep(3);
+  sleep(10);
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing blinker retrieval...");
     std::vector<std::vector<point>> test_sample = gatherObservedPoints(
