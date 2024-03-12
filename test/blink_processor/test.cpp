@@ -68,7 +68,7 @@ bool Tester::test() {
     }
   }
 
-  sleep(3.0);
+  sleep(10);
   {
     auto [success, message] = uh1->moveTo(0,0,0,0);
     if (!success)
@@ -80,7 +80,7 @@ bool Tester::test() {
     if (!success)
       return false;
   }
-  sleep(10);
+  sleep(3.0);
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing blinker retrieval...");
     std::vector<std::vector<point>> test_sample = gatherObservedPoints(
@@ -89,7 +89,7 @@ bool Tester::test() {
         sh_blink_handler_right_,
         sh_blink_handler_back_
         },
-        1.0);
+        3.0);
     auto [success, message] = checkObservedPoints(test_sample, {
         {},
         {{271,233,2},{288,233,1},{300,233,3}},
