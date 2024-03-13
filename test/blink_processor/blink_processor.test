@@ -1,4 +1,5 @@
 <launch>
+<param name="/bond_disable_heartbeat_timeout" value="true" />
 
   <arg name="this_path" default="$(dirname)" />
 
@@ -25,5 +26,6 @@
     <param name="gazebo_spawner_params_1" value="1 --$(arg UAV_TYPE) --enable-rangefinder --enable-dual-uv-cameras calib_file:=$(find uvdar_core)/config/ocamcalib/calib_results_bf_uv_fe.txt --enable-back-uv-camera calib_file:=$(find uvdar_core)/config/ocamcalib/calib_results_bf_uv_fe.txt" />
     <param name="gazebo_spawner_params_2" value="2 --$(arg UAV_TYPE) --enable-rangefinder --enable-ground-truth --enable-uv-leds signal_id:=[0,1,2,3]" />
   </test>
+
 
 </launch>
