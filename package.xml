@@ -29,6 +29,7 @@
   <depend>mrs_uav_system</depend>
 
   <test_depend>xvfb</test_depend>
+  <test_depend>gdb</test_depend>
 
   <export>
     <gazebo_ros plugin_path="${prefix}/lib"/>
