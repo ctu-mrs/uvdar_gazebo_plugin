@@ -1,2 +1,2 @@
 #!/bin/bash
-git clone git@github.com:ctu-mrs/uvdar_core.git
+git clone https://github.com/ctu-mrs/uvdar_core.git
