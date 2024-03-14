@@ -43,9 +43,9 @@
 
 
       <!-- <node pkg="nodelet" type="nodelet" name="$(arg nodelet_manager)" args="manager" output="screen"  launch-prefix="xvfb-run gdb -batch -ex run -ex bt -/-args"> -->
-    <node pkg="nodelet" type="nodelet" name="$(arg UAV_NAME)_uvdar_nodelet_manager" args="manager" output="screen"  launch-prefix="xvfb-run">
-      <param name="num_worker_threads" value="8" />
-    </node>
+    <!-- <node pkg="nodelet" type="nodelet" name="$(arg UAV_NAME)_uvdar_nodelet_manager" args="manager" output="screen"  launch-prefix="xvfb-run"> -->
+    <!--   <param name="num_worker_threads" value="8" /> -->
+    <!-- </node> -->
 
     <node name="bluefox_emulator" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARBluefoxEmulator $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="bash -c 'sleep 5; $0 $@'">
       <rosparam param="camera_output_topics"> ["camera_left", "camera_right", "camera_back"] </rosparam>
