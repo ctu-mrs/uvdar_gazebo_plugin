@@ -60,7 +60,7 @@
 
 
 
-    <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false"> 
+    <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="xvfb-run"> 
     <!-- <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="true" launch-prefix="debug_roslaunch"> --> 
       <!-- <node name="uv_detect" pkg="uvdar" type="uv_detector_node" output="screen" launch-prefix="urxvt -e gdb -q -x /home/viktor/gdb.cmds -/-args"> -->
         <!-- <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="true" launch-prefix="valgrind -/-tool=callgrind -/-callgrind-out-file=/home/viktor/callgrind.out -/-instr-atstart=no -/-collect-atstart=yes"> --> 
