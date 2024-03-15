@@ -26,7 +26,8 @@
   <group ns="$(arg UAV_NAME)">
 
 
-    <node pkg="nodelet" type="nodelet" name="$(arg UAV_NAME)_uvdar_nodelet_manager" args="manager" output="screen"  launch-prefix="xvfb-run gdb -ex run -ex bt">
+    <!-- <node pkg="nodelet" type="nodelet" name="$(arg UAV_NAME)_uvdar_nodelet_manager" args="manager" output="screen"  launch-prefix="xvfb-run gdb -ex run -ex bt"> -->
+    <node pkg="nodelet" type="nodelet" name="$(arg UAV_NAME)_uvdar_nodelet_manager" args="manager" output="screen"  launch-prefix="xvfb-run">
       <param name="num_worker_threads" value="8" />
     </node>
 
