@@ -1,7 +1,7 @@
 <launch>
   <arg name="UAV_NAME" default="$(optenv UAV_NAME)"/>
 
-  <arg name="standalone" default="true"/>
+  <arg name="standalone" default="false"/>
 
   <arg unless="$(arg standalone)" name="nodelet" value="load"/>
   <arg     if="$(arg standalone)" name="nodelet" value="standalone"/>
@@ -43,11 +43,11 @@
 
 
       <!-- <node pkg="nodelet" type="nodelet" name="$(arg nodelet_manager)" args="manager" output="screen"  launch-prefix="xvfb-run gdb -batch -ex run -ex bt -/-args"> -->
-    <!-- <node pkg="nodelet" type="nodelet" name="$(arg UAV_NAME)_uvdar_nodelet_manager" args="manager" output="screen"  launch-prefix="xvfb-run"> -->
-    <!--   <param name="num_worker_threads" value="8" /> -->
-    <!-- </node> -->
+    <node pkg="nodelet" type="nodelet" name="$(arg UAV_NAME)_uvdar_nodelet_manager" args="manager" output="screen"  launch-prefix="xvfb-run">
+      <param name="num_worker_threads" value="8" />
+    </node>
 
-    <node name="bluefox_emulator" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARBluefoxEmulator $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="bash -c 'sleep 5; $0 $@'">
+    <node name="bluefox_emulator" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARBluefoxEmulator $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="bash -c 'sleep 0; $0 $@'">
       <rosparam param="camera_output_topics"> ["camera_left", "camera_right", "camera_back"] </rosparam>
       <rosparam param="calib_files"> ["default", "default", "default"] </rosparam>
       <remap from="~camera_left" to="/$(arg UAV_NAME)/uvdar_bluefox_left/image_raw"/>
@@ -60,7 +60,8 @@
 
 
 
-    <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="xvfb-run"> 
+    <!-- <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="xvfb-run"> --> 
+    <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false"  launch-prefix="bash -c 'sleep 10; $0 $@'"> 
     <!-- <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="true" launch-prefix="debug_roslaunch"> --> 
       <!-- <node name="uv_detect" pkg="uvdar" type="uv_detector_node" output="screen" launch-prefix="urxvt -e gdb -q -x /home/viktor/gdb.cmds -/-args"> -->
         <!-- <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="true" launch-prefix="valgrind -/-tool=callgrind -/-callgrind-out-file=/home/viktor/callgrind.out -/-instr-atstart=no -/-collect-atstart=yes"> --> 
@@ -97,7 +98,7 @@
       <remap from="~imu" to="mavros/imu/data"/>
     </node>
 
-    <node name="blink_processor" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARBlinkProcessor $(arg nodelet_manager)" output="screen" respawn="false">
+    <node name="blink_processor" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARBlinkProcessor $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="bash -c 'sleep 15; $0 $@'">
 
       <param name="uav_name" type = "string" value="$(arg UAV_NAME)"/>
       <param name="debug"		type="bool" value="false"/> 
