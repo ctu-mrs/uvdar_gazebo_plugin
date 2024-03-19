@@ -92,6 +92,16 @@ private:
   ros::ServiceServer active_setter_;
 
 public:
+
+  ////////////////////////////////////////////////////////////////////////////////
+  // Destructor
+  /* ~UvLed() destructor //{ */
+  ~UvLed()
+  {
+    ROS_DEBUG_STREAM_NAMED("UvLed", "Unloaded");
+  }
+    //}
+    
   void Load(sensors::SensorPtr _sensor, sdf::ElementPtr _sdf) {
 
     std::cout << "Loading UV LED" << std::endl;

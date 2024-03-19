@@ -135,6 +135,15 @@ private:
 
 public:
 
+  ////////////////////////////////////////////////////////////////////////////////
+  // Destructor
+  /* ~UvCam() destructor //{ */
+  ~UvCam()
+  {
+    ROS_DEBUG_STREAM_NAMED("UvCam", "Unloaded");
+  }
+    //}
+
 /* Load //{ */
   void Load(sensors::SensorPtr _parent, sdf::ElementPtr _sdf) {
 
