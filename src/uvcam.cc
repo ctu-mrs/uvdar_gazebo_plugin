@@ -102,6 +102,7 @@ private:
   double                           coef[3] = {1.3398, 31.4704, 0.0154};
   std::thread                      transfer_thread;
   std::thread                      link_callback_thread;
+  bool                             finishing_program = false;
   ros::NodeHandle                  nh_;
   ros::Subscriber ledInfoSubscriber;
   std::vector<ros::Subscriber> ledMessageSubscribers;
@@ -140,6 +141,9 @@ public:
   /* ~UvCam() destructor //{ */
   ~UvCam()
   {
+    finishing_program = true;
+    transfer_thread.join();
+    link_callback_thread.join();
     ROS_DEBUG_STREAM_NAMED("UvCam", "Unloaded");
   }
     //}
@@ -311,7 +315,7 @@ private:
     std::unordered_map<std::string, std::shared_ptr<LedMgr>> leds_by_name_local;
     /* std::pair<std::string, std::shared_ptr<LedMgr> > led; */
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: loop start");
-    while (ros::ok()){
+    while (ros::ok() && !finishing_program){
       /* begin         = std::clock(); */
       //CHECK: Optimize the following
       /* for (int j = 0; j < cvimg.image.rows; j++) { */
@@ -372,7 +376,7 @@ private:
       timeout= 1.0/(cameras.front().props.f);
       rt = ros::Rate(cameras.front().props.f);
     }
-    while (nh_.ok())
+    while (nh_.ok() && ros::ok() && !finishing_program)
     {
       link_queue_.callAvailable(ros::WallDuration(timeout));
       rt.sleep();
