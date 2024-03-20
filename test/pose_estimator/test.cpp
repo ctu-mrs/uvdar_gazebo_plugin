@@ -306,7 +306,7 @@ std::tuple<bool, std::string> Tester::moveAndCheck(Eigen::Vector3d position, dou
     if (!success)
       return {false, "Failed to move UAV 2 to position ["+std::to_string(position.x())+","+std::to_string(position.y())+","+std::to_string(position.z())+","+std::to_string(heading)+"]: "+message};
   }
-  sleep(1.0);
+  sleep(2.0);
   {
     std::vector<std::vector<poseEstimate>> test_sample = getObservedPoses(
         {
