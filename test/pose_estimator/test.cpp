@@ -270,6 +270,16 @@ std::tuple<bool, std::string> Tester::checkObservedPoses(std::vector<std::vector
 
   double avg_dist = (sumdist/((double)(distances.size())));
 
+  if ((avg_dist > AVG_MAHALANOBIS_THRESHOLD) || (maxdist > MAX_MAHALANOBIS_THRESHOLD) || (mindist < MIN_MAHALANOBIS_THRESHOLD)){
+    ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Expected pose: " << b.to_string());
+    for (auto &At : As){
+      auto A = At.back();
+      ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Obtained pose mean: " << A.to_string());
+      auto [success, eigs] = eigenvalues(A);
+      ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Obtained pose covariance eigenvalues: [" <<std::to_string(eigs.x())+","+std::to_string(eigs.y())+","+std::to_string(eigs.z())+"]");
+    }
+  }
+
   if (avg_dist > AVG_MAHALANOBIS_THRESHOLD){
     return {false, "The average Mahalanobis distance of the estimates w.r.t. GT was " + std::to_string(avg_dist) + " which is considered excessive!"};
   }
