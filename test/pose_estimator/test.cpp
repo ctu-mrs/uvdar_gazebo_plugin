@@ -96,7 +96,7 @@ bool Tester::test() {
 
   sleep(2);
   {
-    auto [success, message] = setRTFactorPercent(20);
+    auto [success, message] = setRTFactorPercent(10);
     if (!success){
       ROS_ERROR_STREAM("[" << ros::this_node::getName().c_str() << "]: Failed to set RT factor: " << message);
       return false;
