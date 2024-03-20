@@ -66,6 +66,7 @@ public:
 
   std::pair<double, double> mahalanobisDistance(poseEstimate A, pose b);
   std::pair<double, double> determinant(poseEstimate A);
+  std::pair<bool, Eigen::Vector3d> eigenvalues(poseEstimate A);
   
 
   bool test();
@@ -240,7 +241,8 @@ std::tuple<bool, std::string> Tester::checkObservedPoses(std::vector<std::vector
 
       auto det = determinant(A);
       if (det.first > MAX_GAUSSIAN_VOLUME){
-        return {false, "The determinant of the position covariance is " + std::to_string(det.first) + " which is considered excessive!"};
+        auto [success, eigs] = eigenvalues(A);
+        return {false, "The determinant of the position covariance is " + std::to_string(det.first) + " which is considered excessive! The eigenvalues of the covariance are: ["+std::to_string(eigs.x())+","+std::to_string(eigs.y())+","+std::to_string(eigs.z())+"]."};
       }
 
       distances.push_back(mahalanobisDistance(A, b));
@@ -343,6 +345,20 @@ std::pair<double, double> Tester::determinant(poseEstimate A){
   mat3_t Cp = cov_orig.block<3, 3>(0, 0);
   mat3_t Co = cov_orig.block<3, 3>(3, 3);
   return {Cp.determinant(), Co.determinant()};
+}
+
+std::pair<bool, Eigen::Vector3d> Tester::eigenvalues(poseEstimate A){
+  const mat6_t cov_orig = mrs_lib::geometry::toEigenMatrix(A.covariance);
+  mat3_t Cp = cov_orig.block<3, 3>(0, 0);
+  Eigen::SelfAdjointEigenSolver<mat3_t> esol(Cp);
+  // check success of the solver
+  if (esol.info() != Eigen::Success)
+  {
+    ROS_ERROR("Failed to compute eigen vectors/values for position. Is the covariance matrix correct?");
+    return {false, Eigen::Vector3d(INFINITY, INFINITY, INFINITY)};
+  }
+
+  return {true, esol.eigenvalues()};
 }
 
 // --------------------------------------------------------------
