@@ -102,7 +102,7 @@ bool Tester::test() {
     }
   }
 
-  ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing point retrieval done.");
+  ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing blinker retrieval done.");
 
 
 
