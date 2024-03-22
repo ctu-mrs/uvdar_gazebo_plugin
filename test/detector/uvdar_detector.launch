@@ -27,7 +27,7 @@
 
 
     <!-- <node pkg="nodelet" type="nodelet" name="$(arg UAV_NAME)_uvdar_nodelet_manager" args="manager" output="screen"  launch-prefix="debug_roslaunch_xvfb"> -->
-    <node pkg="nodelet" type="nodelet" name="$(arg UAV_NAME)_uvdar_nodelet_manager" args="manager" output="screen"  launch-prefix="xvfb-run">
+      <node pkg="nodelet" type="nodelet" name="$(arg UAV_NAME)_uvdar_nodelet_manager" args="manager" output="screen"  launch-prefix="rosrun uvdar_gazebo_plugin test/xvfb_runner.sh">
       <param name="num_worker_threads" value="8" />
     </node>
 
@@ -44,7 +44,7 @@
 
 
 
-    <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="bash -c 'sleep 10; $0 $@'"> 
+    <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="bash -c 'sleep 0; $0 $@'"> 
 
       <param name="uav_name"		type="string" value="$(arg UAV_NAME)"/> 
       <param name="debug"		type="bool" value="$(arg debug)"/> 

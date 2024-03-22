@@ -65,13 +65,13 @@ bool Tester::test() {
     uh2->spawn(_gazebo_spawner_params_2_);
   }
 
-  /* { */
-  /*   auto [success, message] = setRTFactorPercent(25); */
-  /*   if (!success){ */
-  /*     ROS_ERROR_STREAM("[" << ros::this_node::getName().c_str() << "]: Failed to set RT factor: " << message); */
-  /*     return false; */
-  /*   } */
-  /* } */
+  {
+    auto [success, message] = setRTFactorPercent(50);
+    if (!success){
+      ROS_ERROR_STREAM("[" << ros::this_node::getName().c_str() << "]: Failed to set RT factor: " << message);
+      return false;
+    }
+  }
 
   sleep(1);
 
