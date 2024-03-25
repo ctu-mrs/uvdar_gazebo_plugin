@@ -44,7 +44,7 @@
 
 
 
-    <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="bash -c 'sleep 10; $0 $@'"> 
+    <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="bash -c 'sleep 0; $0 $@'"> 
 
       <param name="uav_name"		type="string" value="$(arg UAV_NAME)"/> 
       <param name="debug"		type="bool" value="$(arg debug)"/> 
