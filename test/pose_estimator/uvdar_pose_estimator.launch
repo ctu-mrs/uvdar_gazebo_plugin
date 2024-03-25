@@ -78,7 +78,7 @@
 
 
     <!-- <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="xvfb-run"> --> 
-    <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false"  launch-prefix="bash -c 'sleep 10; $0 $@'"> 
+    <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="false"  launch-prefix="bash -c 'sleep 0; $0 $@'"> 
     <!-- <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="true" launch-prefix="debug_roslaunch"> --> 
       <!-- <node name="uv_detect" pkg="uvdar" type="uv_detector_node" output="screen" launch-prefix="urxvt -e gdb -q -x /home/viktor/gdb.cmds -/-args"> -->
         <!-- <node name="uv_detect" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARDetector $(arg nodelet_manager)" output="screen" respawn="true" launch-prefix="valgrind -/-tool=callgrind -/-callgrind-out-file=/home/viktor/callgrind.out -/-instr-atstart=no -/-collect-atstart=yes"> --> 
@@ -92,6 +92,8 @@
       <param name="justReport" type="bool" value="true"/>
       <param name="threshold" type="int" value="$(arg threshold)"/>
 
+      <param name="initial_delay" type="int" value="10"/>
+      
       <rosparam param="camera_topics"> ["camera_left", "camera_right", "camera_back"] </rosparam>
       <rosparam param="points_seen_topics"> ["points_seen_left", "points_seen_right", "points_seen_back"] </rosparam>
 
@@ -115,7 +117,7 @@
       <remap from="~imu" to="mavros/imu/data"/>
     </node>
 
-    <node name="blink_processor" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARBlinkProcessor $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="bash -c 'sleep 15; $0 $@'">
+    <node name="blink_processor" pkg="nodelet" type="nodelet" args="$(arg nodelet) uvdar/UVDARBlinkProcessor $(arg nodelet_manager)" output="screen" respawn="false" launch-prefix="bash -c 'sleep 0; $0 $@'">
 
       <param name="uav_name" type = "string" value="$(arg UAV_NAME)"/>
       <param name="debug"		type="bool" value="false"/> 

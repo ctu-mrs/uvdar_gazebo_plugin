@@ -55,6 +55,8 @@
       <param name="justReport" type="bool" value="true"/>
       <param name="threshold" type="int" value="$(arg threshold)"/>
 
+      <param name="initial_delay" type="int" value="5"/>
+
       <rosparam param="camera_topics"> ["camera_left", "camera_right", "camera_back"] </rosparam>
       <rosparam param="points_seen_topics"> ["points_seen_left", "points_seen_right", "points_seen_back"] </rosparam>
 

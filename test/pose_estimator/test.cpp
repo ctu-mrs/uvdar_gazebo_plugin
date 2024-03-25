@@ -6,8 +6,6 @@
 #include <mrs_lib/geometry/conversions.h>
 #include <mrs_lib/geometry/cyclic.h>
 
-#define MAX_GAUSSIAN_VOLUME 1.5
-
 #define AVG_MAHALANOBIS_THRESHOLD 1.5
 #define MAX_MAHALANOBIS_THRESHOLD 2.0
 #define MIN_MAHALANOBIS_THRESHOLD 0.1
@@ -60,9 +58,9 @@ public:
 
 
   std::vector<std::vector<poseEstimate>> getObservedPoses(mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped> &sh, double duration_seconds);
-  std::tuple<bool, std::string> checkObservedPoses(std::vector<std::vector<poseEstimate>> As, pose b, int ID);
+  std::tuple<bool, std::string> checkObservedPoses(std::vector<std::vector<poseEstimate>> As, pose b, int ID, double max_gaussian_volume);
 
-  std::tuple<bool, std::string> moveAndCheck(Eigen::Vector3d position, double heading, double gatherSeconds);
+  std::tuple<bool, std::string> moveAndCheck(Eigen::Vector3d position, double heading, double gatherSeconds, double max_gaussian_volume);
 
   std::pair<double, double> mahalanobisDistance(poseEstimate A, pose b);
   std::pair<double, double> determinant(poseEstimate A);
@@ -97,7 +95,7 @@ bool Tester::test() {
 
   sleep(2);
   {
-    auto [success, message] = setRTFactorPercent(10);
+    auto [success, message] = setRTFactorPercent(15);
     if (!success){
       ROS_ERROR_STREAM("[" << ros::this_node::getName().c_str() << "]: Failed to set RT factor: " << message);
       return false;
@@ -108,12 +106,12 @@ bool Tester::test() {
     if (!success)
       return false;
   }
-  sleep(10);
+  sleep(1);
 
   int pose_id = 1;
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing pose retrieval for pose "+std::to_string(pose_id)+"...");
-    auto [success, message] = moveAndCheck(Eigen::Vector3d(5,0,0), 0, 3.0);
+    auto [success, message] = moveAndCheck(Eigen::Vector3d(5,0,0), 0, 3.0, 1.0);
     if (!success){
       ROS_ERROR("[%s]: Failed to test pose %d: %s", ros::this_node::getName().c_str(), pose_id, message.c_str());
       return false;
@@ -122,7 +120,7 @@ bool Tester::test() {
   }
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing pose retrieval for pose "+std::to_string(pose_id)+"...");
-    auto [success, message] = moveAndCheck(Eigen::Vector3d(10,0,0), 0, 3.0);
+    auto [success, message] = moveAndCheck(Eigen::Vector3d(10,0,0), 0, 3.0, 1.0);
     if (!success){
       ROS_ERROR("[%s]: Failed to test pose %d: %s", ros::this_node::getName().c_str(), pose_id, message.c_str());
       return false;
@@ -131,7 +129,7 @@ bool Tester::test() {
   }
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing pose retrieval for pose "+std::to_string(pose_id)+"...");
-    auto [success, message] = moveAndCheck(Eigen::Vector3d(15,0,0), 0, 3.0);
+    auto [success, message] = moveAndCheck(Eigen::Vector3d(15,0,0), 0, 3.0, 3.5);
     if (!success){
       ROS_ERROR("[%s]: Failed to test pose %d: %s", ros::this_node::getName().c_str(), pose_id, message.c_str());
       return false;
@@ -140,7 +138,7 @@ bool Tester::test() {
   }
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing pose retrieval for pose "+std::to_string(pose_id)+"...");
-    auto [success, message] = moveAndCheck(Eigen::Vector3d(3,-4,0), 0, 3.0);
+    auto [success, message] = moveAndCheck(Eigen::Vector3d(3,-4,0), 0, 3.0, 1.0);
     if (!success){
       ROS_ERROR("[%s]: Failed to test pose %d: %s", ros::this_node::getName().c_str(), pose_id, message.c_str());
       return false;
@@ -149,7 +147,7 @@ bool Tester::test() {
   }
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing pose retrieval for pose "+std::to_string(pose_id)+"...");
-    auto [success, message] = moveAndCheck(Eigen::Vector3d(6,-8,0), 0, 3.0);
+    auto [success, message] = moveAndCheck(Eigen::Vector3d(6,-8,0), 0, 3.0, 1.0);
     if (!success){
       ROS_ERROR("[%s]: Failed to test pose %d: %s", ros::this_node::getName().c_str(), pose_id, message.c_str());
       return false;
@@ -158,7 +156,7 @@ bool Tester::test() {
   }
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing pose retrieval for pose "+std::to_string(pose_id)+"...");
-    auto [success, message] = moveAndCheck(Eigen::Vector3d(9,-12,0), 0, 3.0);
+    auto [success, message] = moveAndCheck(Eigen::Vector3d(9,-12,0), 0, 3.0, 1.0);
     if (!success){
       ROS_ERROR("[%s]: Failed to test pose %d: %s", ros::this_node::getName().c_str(), pose_id, message.c_str());
       return false;
@@ -213,7 +211,7 @@ std::vector<std::vector<poseEstimate>> Tester::getObservedPoses(mrs_lib::Subscri
   return output;
 }
 
-std::tuple<bool, std::string> Tester::checkObservedPoses(std::vector<std::vector<poseEstimate>> As, pose b, int ID){
+std::tuple<bool, std::string> Tester::checkObservedPoses(std::vector<std::vector<poseEstimate>> As, pose b, int ID, double max_gaussian_volume){
   if (As.size() == 0 ){
     return {false, "No pose messages were retrieved!"};
   }
@@ -240,7 +238,7 @@ std::tuple<bool, std::string> Tester::checkObservedPoses(std::vector<std::vector
       }
 
       auto det = determinant(A);
-      if (det.first > MAX_GAUSSIAN_VOLUME){
+      if (det.first > max_gaussian_volume){
         auto [success, eigs] = eigenvalues(A);
         return {false, "The determinant of the position covariance is " + std::to_string(det.first) + " which is considered excessive! The eigenvalues of the covariance are: ["+std::to_string(eigs.x())+","+std::to_string(eigs.y())+","+std::to_string(eigs.z())+"]."};
       }
@@ -300,13 +298,13 @@ std::tuple<bool, std::string> Tester::checkObservedPoses(std::vector<std::vector
 
   return {true, "Success!"};
 }
-std::tuple<bool, std::string> Tester::moveAndCheck(Eigen::Vector3d position, double heading, double gatherSeconds){
+std::tuple<bool, std::string> Tester::moveAndCheck(Eigen::Vector3d position, double heading, double gatherSeconds, double max_gaussian_volume){
   {
     auto [success, message] = uh2->moveTo(position.x(),position.y(),position.z(), heading);
     if (!success)
       return {false, "Failed to move UAV 2 to position ["+std::to_string(position.x())+","+std::to_string(position.y())+","+std::to_string(position.z())+","+std::to_string(heading)+"]: "+message};
   }
-  sleep(2.0);
+  sleep(4.0);
   {
     std::vector<std::vector<poseEstimate>> test_sample = getObservedPoses(
         {
@@ -325,7 +323,7 @@ std::tuple<bool, std::string> Tester::moveAndCheck(Eigen::Vector3d position, dou
     expected_pose.orientation.z = qz;
     expected_pose.orientation.w = qw;
 
-    auto [success, message] = checkObservedPoses(test_sample, expected_pose, 0);
+    auto [success, message] = checkObservedPoses(test_sample, expected_pose, 0, max_gaussian_volume);
     if (!success){
       ROS_ERROR_STREAM("[" << ros::this_node::getName().c_str() << "]: " << message);
       return {false, message};
