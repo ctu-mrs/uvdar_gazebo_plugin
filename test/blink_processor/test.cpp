@@ -60,7 +60,7 @@ bool Tester::test() {
     uh2->spawn(_gazebo_spawner_params_2_);
   }
 
-  sleep(10);
+  sleep(5);
   {
     auto [success, message] = setRTFactorPercent(15);
     if (!success){
@@ -69,7 +69,7 @@ bool Tester::test() {
     }
   }
 
-  sleep(10);
+  sleep(1);
   {
     auto [success, message] = uh1->moveTo(0,0,0,0);
     if (!success)
@@ -102,7 +102,7 @@ bool Tester::test() {
     }
   }
 
-  ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing point retrieval done.");
+  ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing blinker retrieval done.");
 
 
 

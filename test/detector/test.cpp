@@ -66,14 +66,14 @@ bool Tester::test() {
   }
 
   {
-    auto [success, message] = setRTFactorPercent(25);
+    auto [success, message] = setRTFactorPercent(50);
     if (!success){
       ROS_ERROR_STREAM("[" << ros::this_node::getName().c_str() << "]: Failed to set RT factor: " << message);
       return false;
     }
   }
 
-  sleep(10);
+  sleep(1);
 
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing resolution...");
