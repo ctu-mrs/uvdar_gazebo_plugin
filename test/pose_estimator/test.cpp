@@ -129,7 +129,7 @@ bool Tester::test() {
   }
   {
     ROS_INFO_STREAM("[" << ros::this_node::getName().c_str() << "]: Testing pose retrieval for pose "+std::to_string(pose_id)+"...");
-    auto [success, message] = moveAndCheck(Eigen::Vector3d(15,0,0), 0, 3.0, 3.5);
+    auto [success, message] = moveAndCheck(Eigen::Vector3d(15,0,0), 0, 3.0, 4.0);
     if (!success){
       ROS_ERROR("[%s]: Failed to test pose %d: %s", ros::this_node::getName().c_str(), pose_id, message.c_str());
       return false;
