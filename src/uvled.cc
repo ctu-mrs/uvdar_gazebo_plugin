@@ -211,10 +211,6 @@ private:
 
   bool callbackSetMode(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res) {
     mode                     = req.value;
-
-    std_msgs::Int32 mode_msg;
-    mode_msg.data = mode;
-    led_mode_pub.publish(mode_msg);
     publishData();
     res.message = "Setting the mode to ";
     res.message += std::to_string(mode);
@@ -225,6 +221,7 @@ private:
 
   bool callbackSendMessage(uvdar_core::SetLedMessage::Request &req, uvdar_core::SetLedMessage::Response &res) {
     if (mode == 1){
+
       res.message = "Sending message";
 
       /* std::string message_text; */
@@ -236,6 +233,7 @@ private:
       /* } */
       /* ROS_INFO_STREAM(res.message << " :" << message_text); */
 
+      led_msg.link_name.data = link_name;
       led_msg.data_frame = req.data_frame;
       led_message_pub.publish(led_msg);
 
@@ -282,6 +280,7 @@ private:
         led_info.mes_bitrate.data = fm;
         led_info.ID.data = ID;
         led_info.active.data = active;
+        led_info.mode.data = mode;
         led_info.device_id.data = device_id;
         led_info.link_name.data = link_name;
         

@@ -106,7 +106,7 @@ private:
   ros::NodeHandle                  nh_;
   ros::Subscriber ledInfoSubscriber;
   std::vector<ros::Subscriber> ledMessageSubscribers;
-  std::vector<ros::Subscriber> ledModeSubscribers;
+  /* std::vector<ros::Subscriber> ledModeSubscribers; */
 
   std::string filename;
   std::string publish_topic;
@@ -528,17 +528,22 @@ void ledInfoCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedInfo const>
     _leds_by_name_.insert({link_name,led});
   }
 
-  if ((led_info->ID.data >= 0) && (led_info->ID.data < (int)(sequences_.size())))
-    _leds_by_name_.at(link_name)->update_data(link_name, sequences_[led_info->ID.data],led_info->seq_bitrate.data, led_info->mes_bitrate.data);
-  else
-    std::cerr << "[UVDAR camera]: Invalid sequence ID: " << led_info->ID.data << std::endl;
+  _leds_by_name_.at(link_name)->set_mode(led_info->mode.data);
+  if (led_info->mode.data == 0){ // tracking mode
+    if ((led_info->ID.data >= 0) && (led_info->ID.data < (int)(sequences_.size())))
+      _leds_by_name_.at(link_name)->update_data(link_name, sequences_[led_info->ID.data],led_info->seq_bitrate.data, led_info->mes_bitrate.data);
+    else
+      std::cerr << "[UVDAR camera]: Invalid sequence ID: " << led_info->ID.data << std::endl;
+  }
+  else { // message mode
+  }
 
   if (_leds_by_name_.at(link_name)->get_device_id() == ""){
 
     _leds_by_name_.at(link_name)->set_device_id(device_id);
   std::cout << "Subscribing to LED info of " << "/gazebo/ledMessage/"+device_id << std::endl;
     ledMessageSubscribers.push_back(nh_.subscribe("/gazebo/ledMessage/"+device_id, 1, &UvCam::ledMessageCallback,this));
-    ledModeSubscribers.push_back(nh_.subscribe("/gazebo/ledMode/"+device_id, 1, &UvCam::ledModeCallback,this));
+    /* ledModeSubscribers.push_back(nh_.subscribe("/gazebo/ledMode/"+device_id, 1, &UvCam::ledModeCallback,this)); */
 
   }
 
@@ -553,10 +558,11 @@ void ledMessageCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedMessage 
   /* std::cout << "Getting message" << std::endl; */
   ros::M_string mhdr = event.getConnectionHeader();
   std::string topic = mhdr["topic"];
-  std::string link_name = topic.substr(std::string("/gazebo/ledMessage/").length());
+  /* std::string link_name = topic.substr(std::string("/gazebo/ledMessage/").length()); */
   const uvdar_gazebo_plugin::LedMessageConstPtr& led_message = event.getMessage();
   /* std::cout << "UV CAM: receiving message of length " << led_message->data_frame.size() << std::endl; */
 
+  std::string link_name = led_message->link_name.data;
   if (led_message->data_frame.size() >0){
     std::vector<bool> data_frame;
     for (auto d : led_message->data_frame){
@@ -568,18 +574,18 @@ void ledMessageCallback(const ros::MessageEvent<uvdar_gazebo_plugin::LedMessage 
 }
 //}
 //
-/* void ledModeCallback //{ */
-void ledModeCallback(const ros::MessageEvent<std_msgs::Int32 const>& event){
-  std::scoped_lock lock(mtx_leds);
-  /* std::cout << "Getting message" << std::endl; */
-  ros::M_string mhdr = event.getConnectionHeader();
-  std::string topic = mhdr["topic"];
-  std::string link_name = topic.substr(std::string("/gazebo/ledMode/").length());
-  auto led_mode = event.getMessage();
-  /* std::cout << "UV CAM: receiving mode of " << led_mode->data << std::endl; */
-  _leds_by_name_.at(link_name)->set_mode(led_mode->data);
-}
-//}
+/* /1* void ledModeCallback //{ *1/ */
+/* void ledModeCallback(const ros::MessageEvent<std_msgs::Int32 const>& event){ */
+/*   std::scoped_lock lock(mtx_leds); */
+/*   /1* std::cout << "Getting message" << std::endl; *1/ */
+/*   ros::M_string mhdr = event.getConnectionHeader(); */
+/*   std::string topic = mhdr["topic"]; */
+/*   std::string link_name = topic.substr(std::string("/gazebo/ledMode/").length()); */
+/*   auto led_mode = event.getMessage(); */
+/*   /1* std::cout << "UV CAM: receiving mode of " << led_mode->data << std::endl; *1/ */
+/*   _leds_by_name_.at(link_name)->set_mode(led_mode->data); */
+/* } */
+/* //} */
 
 /* yieldCallback //{ */
 void yieldCallback(const uvdar_gazebo_plugin::CamInfoConstPtr &cam_info)
