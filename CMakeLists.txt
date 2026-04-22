@@ -1,135 +1,128 @@
-cmake_minimum_required(VERSION 3.1.2 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.8)
 project(uvdar_gazebo_plugin)
 
+# Force CMake to look in the ROS 2 installation paths
+list(APPEND CMAKE_PREFIX_PATH "/opt/ros/jazzy")
+
+# Default to C++17
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_definitions(-Wall)
-add_definitions(-Wextra)
+# Find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(mrs_msgs REQUIRED) 
+find_package(uvdar_core_msgs REQUIRED) 
+find_package(OpenCV REQUIRED)
+find_package(gz-sim8 REQUIRED) 
+find_package(gz-transport13 REQUIRED) 
 
-set(CATKIN_DEPENDENCIES
-  cv_bridge
-  image_transport
-  message_generation
-  message_runtime
-  mrs_msgs
-  roscpp
-  sensor_msgs
-  std_msgs
-  tf
-  uvdar_core
-  gazebo_plugins
-  gazebo_ros
-  mrs_uav_gazebo_testing
-  )
+find_package(rosidl_default_generators REQUIRED) 
 
-set(LIBRARIES
-  uvdar_led
-  uvdar_cam
-  )
-
-find_package(catkin REQUIRED COMPONENTS
-  ${CATKIN_DEPENDENCIES}
+# Generate ROS 2 interfaces
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/LedInfo.msg"
+  "msg/CamInfo.msg"
+  "msg/LedMessage.msg"
+  DEPENDENCIES std_msgs uvdar_core_msgs
 )
 
-add_message_files(DIRECTORY msg FILES
-  LedInfo.msg
-  CamInfo.msg
-  LedMessage.msg
-  )
-
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-  uvdar_core
-  )
-
-catkin_package(
-   INCLUDE_DIRS include
-   CATKIN_DEPENDS ${CATKIN_DEPENDENCIES}
-   LIBRARIES ${LIBRARIES}
-)
-
-find_package(gazebo REQUIRED)
-
-ign_import_target(UUID)
-
-find_package(roscpp REQUIRED)
-
-find_package(OpenCV REQUIRED HINTS /usr/local/lib)
-
+# Include directories
 include_directories(
-  ${GAZEBO_INCLUDE_DIRS}
-  ${OPENCV_INCLUDE_DIRS}
-  ${catkin_INCLUDE_DIRS}
   include
-  )
+  ${OpenCV_INCLUDE_DIRS}
+  ${gz-sim8_INCLUDE_DIRS}
+  ${gz-transport13_INCLUDE_DIRS}
+)
 
+# Link directories
 link_directories(
-  ${GAZEBO_LIBRARY_DIRS}
-  ${OPENCV_LIBRARY_DIRS}
-  )
+  ${OpenCV_LIBRARY_DIRS}
+)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
+# --------------------------------------------------------------
+# |                          Libraries                         |
+# --------------------------------------------------------------
 
 ## | ------------------------ uvdar_led ----------------------- |
-
 add_library(uvdar_led SHARED
   src/uvled.cc
-  )
+)
+
+ament_target_dependencies(uvdar_led
+  rclcpp
+  std_msgs
+  mrs_msgs
+  uvdar_core_msgs
+  gz-sim8
+  gz-transport13
+)
 
 target_link_libraries(uvdar_led
-  ${GAZEBO_LIBRARIES}
-  )
-
-add_dependencies(uvdar_led
-  ${${PROJECT_NAME}_EXPORTED_TARGETS}
-  ${catkin_EXPORTED_TARGETS}
-  )
-
-## | ------------------------ uvdar cam ----------------------- |
-
-add_library(uvdar_cam SHARED
-  src/uvcam.cc
-  include/undistortFunctions/ocam_functions.cpp
-  include/ObjectMgr/ObjectMgr.cpp
-  include/ObjectMgr/LedMgr.cpp
-  )
-
-target_link_libraries(uvdar_cam
-  ${catkin_LIBRARIES}
-  ${GAZEBO_LIBRARIES}
   ${OpenCV_LIBRARIES}
-  CameraPlugin
-  )
+)
 
-add_dependencies(uvdar_cam
-  ${${PROJECT_NAME}_EXPORTED_TARGETS}
-  ${catkin_EXPORTED_TARGETS}
-  )
+## | ------------------------ uvdar_cam ----------------------- |
+#add_library(uvdar_cam SHARED
+#  src/uvcam.cc
+#  include/undistortFunctions/ocam_functions.cpp
+#  include/ObjectMgr/ObjectMgr.cpp
+#  include/ObjectMgr/LedMgr.cpp
+#)
 
-## --------------------------------------------------------------
-## |                           Testing                          |
-## --------------------------------------------------------------
+#ament_target_dependencies(uvdar_cam
+#  rclcpp
+#  sensor_msgs
+#  mrs_msgs
+#  uvdar_core_msgs
+#  gz-sim8
+#  gz-transport13
+#  OpenCV
+#)
 
-if(CATKIN_ENABLE_TESTING AND MRS_ENABLE_TESTING)
-
-  message(WARNING "Testing enabled.")
-
-  add_subdirectory(test)
-
+# --------------------------------------------------------------
+# |                           Testing                          |
+# --------------------------------------------------------------
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
 endif()
 
-## --------------------------------------------------------------
-## |                           install                          |
-## --------------------------------------------------------------
+# --------------------------------------------------------------
+# |                           Install                          |
+# --------------------------------------------------------------
 
-install(TARGETS ${LIBRARIES}
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-  )
+install(TARGETS 
+  uvdar_led
+  #  uvdar_cam
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
 
 install(DIRECTORY msg
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-  )
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY launch worlds models
+  DESTINATION share/${PROJECT_NAME}
+  OPTIONAL
+)
+
+ament_export_include_directories(include)
+#ament_export_libraries(uvdar_led uvdar_cam)
+ament_export_dependencies(
+  rclcpp
+  std_msgs
+  sensor_msgs
+  mrs_msgs
+  uvdar_core_msgs
+  gz-sim8
+  gz-transport13
+  OpenCV
+)
+
+ament_package()

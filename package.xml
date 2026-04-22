@@ -1,38 +1,42 @@
 <?xml version="1.0"?>
-<package format="2">
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>uvdar_gazebo_plugin</name>
-  <version>1.0.0</version>
-  <description>The UVDAR Gazebo package</description>
-
-  <author email="viktor.walter@fel.cvut.cz">Viktor Walter</author>
+  <version>2.0.0</version>
+  <description>The UVDAR Gazebo Sim Plugin for ROS 2</description>
   <maintainer email="viktor.walter@fel.cvut.cz">Viktor Walter</maintainer>
-
   <license>BSD 3-Clause</license>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <!-- Build Tool -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>cv_bridge</depend>
-  <depend>gazebo</depend>
-  <depend>gazebo_ros</depend>
-  <depend>gazebo_plugins</depend>
-  <depend>image_transport</depend>
-  <depend>message_generation</depend>
-  <depend>message_runtime</depend>
-  <depend>mrs_msgs</depend>
-  <depend>roscpp</depend>
-  <depend>sensor_msgs</depend>
+  <!-- C++ Runtime Dependencies -->
+  <depend>rclcpp</depend>
   <depend>std_msgs</depend>
-  <depend>tf</depend>
+  <depend>sensor_msgs</depend>
+  
+  <!-- MRS & Custom Dependencies -->
+  <!-- Ensure these packages are installed as ROS 2 packages -->
+  <depend>mrs_msgs</depend>
   <depend>uvdar_core</depend>
-  <depend>mrs_uav_gazebo_testing</depend>
-  <depend>mrs_uav_gazebo_simulation</depend>
-  <depend>mrs_uav_system</depend>
+  
+  <!-- Gazebo Sim Dependencies -->
+  <depend>gz-sim8</depend>
+  <depend>gz-transport13</depend>
 
-  <test_depend>xvfb</test_depend>
-  <test_depend>gdb</test_depend>
+  <!-- OpenCV -->
+  <depend>OpenCV</depend>
+
+  <!-- Message Generation Dependencies -->
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <!-- Test Dependencies (Optional) -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
   <export>
-    <gazebo_ros plugin_path="${prefix}/lib"/>
+    <build_type>ament_cmake</build_type>
   </export>
-
 </package>
