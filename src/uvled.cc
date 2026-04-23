@@ -1,297 +1,354 @@
 #include <functional>
-#include <gazebo/common/common.hh>
-#include <gazebo/gazebo.hh>
-#include <gazebo/physics/physics.hh>
-/* #include <gazebo/rendering/rendering.hh> */
-#include <ros/ros.h>
-#include <std_msgs/Float64.h>
-#include <std_srvs/SetBool.h>
-#include <gazebo/sensors/sensors.hh>
+#include <gz/plugin/Register.hh>
+#include <gz/sim/System.hh>
+#include <gz/sim/Entity.hh>
+#include <gz/sim/Link.hh>
+#include <gz/sim/Model.hh>
+#include <gz/math/Pose3.hh>
+#include <gz/transport/Node.hh> // For Gazebo Transport (optional but recommended)
+#include <gz/sim/components/Name.hh>
+#include <gz/common/Console.hh>
+
+// ROS 2 Headers
+#include "rclcpp/rclcpp.hpp"
+#include <std_msgs/msg/float64.hpp>
+#include <std_msgs/msg/int32.hpp>
+#include <std_srvs/srv/set_bool.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/float64.hpp>
+#include <std_srvs/srv/set_bool.hpp>
 #include <ignition/math/Vector3.hh>
 #include <mutex>
-#include <thread>
-#include <uvdar_gazebo_plugin/LedInfo.h>
-#include <uvdar_gazebo_plugin/LedMessage.h>
-#include <uvdar_core/SetLedMessage.h>
-#include <mrs_msgs/SetInt.h>
-#include <mrs_msgs/Float64Srv.h>
+#include <uvdar_gazebo_plugin/msg/led_info.hpp>
+#include <uvdar_gazebo_plugin/msg/cam_info.hpp>
+#include <uvdar_gazebo_plugin/msg/led_message.hpp>
+#include <uvdar_core_msgs/srv/set_led_message.hpp>
+#include <mrs_msgs/srv/set_int.hpp>
+#include <mrs_msgs/srv/float64_srv.hpp>
+#include <random>
+#include <sstream>
 
-namespace uuid {
-    static std::random_device              rd;
-    static std::mt19937                    gen(rd());
-    static std::uniform_int_distribution<> dis(0, 15);
-    static std::uniform_int_distribution<> dis2(8, 11);
+namespace uvdar_gazebo_plugin {
 
-    std::string generate_uuid_v4() {
+// Helper class for UUID generation to keep it local
+class UuidGenerator {
+public:
+    static std::string generate_v4() {
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        static std::uniform_int_distribution<> dis(0, 15);
+        static std::uniform_int_distribution<> dis2(8, 11);
+
         std::stringstream ss;
-        int i;
         ss << std::hex;
-        for (i = 0; i < 8; i++) {
-            ss << dis(gen);
-        }
+        
+        // 8 chars
+        for (int i = 0; i < 8; i++) ss << dis(gen);
         ss << "_";
-        for (i = 0; i < 4; i++) {
-            ss << dis(gen);
-        }
+        // 4 chars
+        for (int i = 0; i < 4; i++) ss << dis(gen);
         ss << "_4";
-        for (i = 0; i < 3; i++) {
-            ss << dis(gen);
-        }
+        // 3 chars
+        for (int i = 0; i < 3; i++) ss << dis(gen);
         ss << "_";
         ss << dis2(gen);
-        for (i = 0; i < 3; i++) {
-            ss << dis(gen);
-        }
+        // 3 chars
+        for (int i = 0; i < 3; i++) ss << dis(gen);
         ss << "_";
-        for (i = 0; i < 12; i++) {
-            ss << dis(gen);
-        };
+        // 12 chars
+        for (int i = 0; i < 12; i++) ss << dis(gen);
+        
         return ss.str();
     }
-}
+};
 
-namespace gazebo
+
+class UvLed : public gz::sim::System,
+              public gz::sim::ISystemConfigure,
+              public gz::sim::ISystemUpdate
 {
-class UvLed : public SensorPlugin {
+//class UvLed : public SensorPlugin {
 private:
-  ros::NodeHandle nh;
-  std::string     device_id;
-  std::string     link_name;
-  /* double          updatePeriod; */
-  /* float           f; */
 
-  double          fs;
-  double          fm;
-
-  int             mode = 0;
-  int             ID;
-
+  rclcpp::Node::SharedPtr nh;
+  std::string device_id;
+  std::string link_name;
+  double fs = 60.0; // Default frequency
+  double fm = 60.0;
+  int mode = 0;
+  int id = -1;
   bool active = true;
-
   std::string unique_ID;
 
-  /* transport::PublisherPtr posePub; */
-  ros::Publisher led_info_pub;
-  ros::Publisher led_message_pub;
-  ros::Publisher led_mode_pub;
-  /* transport::PublisherPtr statePub ; */
-  gazebo::physics::WorldPtr world;
-  /* physics::EntityPtr        parent_link; */
-  std::thread               pub_thread;
-  sensors::SensorPtr        sensor;
-  /* ignition::math::Pose3d                pose; */
-  /* msgs::Pose                poseMsg; */
-  uvdar_gazebo_plugin::LedInfo      led_info;
-  uvdar_gazebo_plugin::LedMessage   led_msg;
-  std::mutex                   pubMutex;
+  // Publishers
+  rclcpp::Publisher<uvdar_gazebo_plugin::msg::LedInfo>::SharedPtr led_info_pub;
+  rclcpp::Publisher<uvdar_gazebo_plugin::msg::LedMessage>::SharedPtr led_message_pub;
+  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr led_mode_pub;
 
-  ros::ServiceServer sequence_setter_;
-  ros::ServiceServer frequency_setter_;
-  ros::ServiceServer mode_setter_;
-  ros::ServiceServer message_sender_;
-  ros::ServiceServer active_setter_;
+  // Services
+  rclcpp::Service<mrs_msgs::srv::SetInt>::SharedPtr srv_mode_setter;
+  rclcpp::Service<mrs_msgs::srv::Float64Srv>::SharedPtr srv_freq_setter;
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr srv_active_setter;
+  rclcpp::Service<uvdar_core_msgs::srv::SetLedMessage>::SharedPtr srv_msg_sender;
+  rclcpp::Service<mrs_msgs::srv::SetInt>::SharedPtr srv_seq_setter; // Assuming SetInt for sequence
+
+
+  gz::sim::Entity entity_id;
+  std::mutex pubMutex;
+
+  // Message objects (reused to avoid allocation if needed, though shared_ptr is preferred)
+  uvdar_gazebo_plugin::msg::LedInfo led_info_msg;
+  uvdar_gazebo_plugin::msg::LedMessage led_msg_msg;
+
 
 public:
+  UvLed() = default;
+  ~UvLed() override = default;
 
-  ////////////////////////////////////////////////////////////////////////////////
-  // Destructor
-  /* ~UvLed() destructor //{ */
-  ~UvLed()
+  // --------------------------------------------------------------------------
+  // Configure: Replaces Load()
+  // Called once when the plugin is loaded into the simulation
+  // --------------------------------------------------------------------------
+  void Configure(const gz::sim::Entity &_entity,
+                 const std::shared_ptr<const sdf::Element> &_sdf,
+                 gz::sim::EntityComponentManager &_ecm,
+                 gz::sim::EventManager &) override
   {
-    ROS_DEBUG_STREAM_NAMED("UvLed", "Unloaded");
-  }
-    //}
+    this->entity_id = _entity;
+
+    // 1. Initialize ROS 2 Context
+    if (!rclcpp::ok()) {
+        rclcpp::init(0, nullptr);
+    }
     
-  void Load(sensors::SensorPtr _sensor, sdf::ElementPtr _sdf) {
+    // 2. Create Node
+    // Get entity name for unique node name
+    std::string entity_name = "unknown";
+    auto nameComp = _ecm.Component<gz::sim::components::Name>(_entity);
+    if (nameComp) {
+        entity_name = nameComp->Data();
+    }
+    
+    std::string node_name = "uvdar_led_" + entity_name;
+    this->nh = rclcpp::Node::make_shared(node_name);
 
-    std::cout << "Loading UV LED" << std::endl;
+    gzdbg << "Initializing UV LED Plugin for entity: " << entity_name << std::endl;
 
-    unique_ID = uuid::generate_uuid_v4(); // to ensure that each name is unique in the simulation
-
-    this->sensor           = _sensor;
-    world                  = physics::get_world("default");
-    link_name = sensor->ParentName();
-    /* parent_link                 = world->EntityByName(parentName); */
-
+    // 3. Read SDF Parameters
     if (_sdf->HasElement("device_id")) {
-      device_id = _sdf->GetElement("device_id")->Get<std::string>();
-      std::cout << "LED device_id is " << device_id << std::endl;
+        auto elem = _sdf->FindElement("device_id"); 
+        if (elem) {
+            this->device_id = elem->Get<std::string>();
+        }
+        gzdbg << "LED device_id set to: " << device_id << std::endl;
     } else {
-
-      device_id = uuid::generate_uuid_v4();  
-      std::cout << "LED device_id defaulting to " + device_id << std::endl;
+        this->device_id = UuidGenerator::generate_v4();
+        gzdbg << "LED device_id generated: " << device_id << std::endl;
     }
 
-    led_info_pub    = nh.advertise<uvdar_gazebo_plugin::LedInfo>("/gazebo/ledProperties", 1, true);
-    led_message_pub    = nh.advertise<uvdar_gazebo_plugin::LedMessage>("/gazebo/ledMessage/" + device_id, 1, true);
-    led_mode_pub = nh.advertise<std_msgs::Int32>("/gazebo/ledMode/" + device_id, 1, true);
-
     if (_sdf->HasElement("signal_id")) {
-      ID = _sdf->GetElement("signal_id")->Get<int>();
-      std::cout << "LED signal ID is " << ID << std::endl;
+        auto elem = _sdf->FindElement("signal_id"); 
+        if (elem) {
+            this->id = elem->Get<int>();
+        }
+        gzdbg << "LED signal ID is " << id   << std::endl;
     } else {
-      std::cout << "LED signal_id is not set" << std::endl;
-      ID = -1;
+        gzdbg << "LED signal_id not set, defaulting to -1" << std::endl;
+        this->id = -1;
     }
 
     if (_sdf->HasElement("frequency")) {
-      fs = _sdf->GetElement("frequency")->Get<double>();
-      fm = fs;
-      std::cout << "Initial LED bitrate is " << fs << "Hz" << std::endl;
+        auto elem = _sdf->FindElement("frequency"); 
+        if (elem) {
+            this->fs= elem->Get<double>();
+            this->fm = this->fs;
+        }
+        gzdbg << "Initial LED bitrate is " << fs << "Hz" << std::endl;
     } else {
-      std::cout << "Initial LED bitrate defaulting to 60Hz." << std::endl;
-      fs = 60.0;  // camera framerate
-      fm = fs;
+        gzdbg << "Initial LED bitrate defaulting to 60Hz." << std::endl;
+        this->fs = 60.0;
+        this->fm = 60.0;
     }
 
 
-    /* updatePeriod = 1.0; */
-    /* if (_sdf->HasElement("updateRate")) { */
-    /*   updatePeriod = 1.0 / _sdf->GetElement("updateRate")->Get<double>(); */
-    /*   std::cout << "Update rate is " << 1.0 / updatePeriod << "Hz" << std::endl; */
-    /* } else */
-    /*   std::cout << "Update rate defaulting to 1 Hz" << std::endl; */
+    // 4. Determine Link Name
+    // In Gazebo Sim, the sensor is usually attached to a link. 
+    // We try to find the parent link entity.
+    auto model = gz::sim::Model(_entity);
+    if (model.Valid(_ecm)) {
+        // If the plugin is on a model, we might need to find the specific link.
+        // For now, we assume the entity itself or its parent has the name we want.
+        // If you are attaching this to a specific link in SDF, _entity IS the link.
+        auto linkNameComp = _ecm.Component<gz::sim::components::Name>(_entity);
+        if (linkNameComp) {
+            this->link_name = linkNameComp->Data();
+        }
+    } else {
+        // Fallback to entity name
+        this->link_name = entity_name;
+    }
 
+    gzdbg << "Link Name determined as: " << link_name << std::endl;
 
-    transport::NodePtr node(new transport::Node());
-    node->Init();
+    // 5. Create Publishers
+    this->led_info_pub = this->nh->create_publisher<uvdar_gazebo_plugin::msg::LedInfo>(
+        "/gazebo/ledProperties", 10);
+    
+    this->led_message_pub = this->nh->create_publisher<uvdar_gazebo_plugin::msg::LedMessage>(
+        "/gazebo/ledMessage/" + device_id, 10);
+    
+    this->led_mode_pub = this->nh->create_publisher<std_msgs::msg::Int32>(
+        "/gazebo/ledMode/" + device_id, 10);
 
+    // 6. Create Services
+    this->srv_mode_setter = this->nh->create_service<mrs_msgs::srv::SetInt>(
+        "/gazebo/ledModeSetter/" + device_id,
+        std::bind(&UvLed::callbackSetMode, this, std::placeholders::_1, std::placeholders::_2));
 
-    char poseTopicName[30];
-    std::sprintf(poseTopicName, "~/uvleds/pose");
-    sequence_setter_ = nh.advertiseService(("/gazebo/ledSignalSetter/" + device_id).c_str(), &UvLed::callbackSetSequence, this);
-    frequency_setter_ = nh.advertiseService(("/gazebo/ledFrequencySetter/" + device_id).c_str(), &UvLed::callbackSetFrequency, this);
-    mode_setter_ = nh.advertiseService(("/gazebo/ledModeSetter/" + device_id).c_str(), &UvLed::callbackSetMode, this);
-    message_sender_ = nh.advertiseService(("/gazebo/ledMessageSender/" + device_id).c_str(), &UvLed::callbackSendMessage, this);
-    active_setter_ = nh.advertiseService(("/gazebo/ledActiveSetter/" + device_id).c_str(), &UvLed::callbackSetActive, this);
-  }
+    this->srv_freq_setter = this->nh->create_service<mrs_msgs::srv::Float64Srv>(
+        "/gazebo/ledFrequencySetter/" + device_id,
+        std::bind(&UvLed::callbackSetFrequency, this, std::placeholders::_1, std::placeholders::_2));
 
-public:
-  void Init() {
-    std::cout << "Initializing UV LED " << device_id << std::endl;
-    this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&UvLed::OnUpdate, this));
-    std::cout << "Sending LED data" << std::endl;
+    this->srv_active_setter = this->nh->create_service<std_srvs::srv::SetBool>(
+        "/gazebo/ledActiveSetter/" + device_id,
+        std::bind(&UvLed::callbackSetActive, this, std::placeholders::_1, std::placeholders::_2));
+
+    this->srv_msg_sender = this->nh->create_service<uvdar_core_msgs::srv::SetLedMessage>(
+        "/gazebo/ledMessageSender/" + device_id,
+        std::bind(&UvLed::callbackSendMessage, this, std::placeholders::_1, std::placeholders::_2));
+
+    this->srv_seq_setter = this->nh->create_service<mrs_msgs::srv::SetInt>(
+        "/gazebo/ledSignalSetter/" + device_id,
+        std::bind(&UvLed::callbackSetSequence, this, std::placeholders::_1, std::placeholders::_2));
+
+    gzdbg << "UV LED Plugin configured successfully." << std::endl;
+    
+    // Initial publish
     publishData();
-    /* pub_thread = std::thread(&UvLed::PubThread, this); */
-  }
-  // Called by the world update start event
-public:
-  void OnUpdate() {
   }
 
-  // Pointer to the sensor
+  // --------------------------------------------------------------------------
+  // Update: Replaces OnUpdate()
+  // Called every simulation step
+  // --------------------------------------------------------------------------
+  void Update(const gz::sim::UpdateInfo &_info,
+              gz::sim::EntityComponentManager &_ecm) override
+  {
+    // Optional: Spin the node to process incoming service requests immediately
+    // Note: In a real high-frequency loop, you might want to spin less often or use a timer
+    rclcpp::spin_some(this->nh);
+
+    // Logic to publish data based on frequency could go here
+    // For now, we rely on the service callbacks or external triggers to call publishData()
+    // Or you can implement a time-based check:
+    /*
+    double currentTime = _info.simTime.Double();
+    if (currentTime - lastPublishTime >= 1.0 / fs) {
+        publishData();
+        lastPublishTime = currentTime;
+    }
+    */
+  }
 private:
-  bool callbackSetFrequency(mrs_msgs::Float64Srv::Request &req, mrs_msgs::Float64Srv::Response &res) {
+  void publishData() {
+    // Lock mutex if accessing shared data from multiple threads (though ROS 2 callbacks are usually single-threaded per executor)
+    std::lock_guard<std::mutex> lock(pubMutex);
+
+    led_info_msg.seq_bitrate.data = fs;
+    led_info_msg.mes_bitrate.data = fm;
+    led_info_msg.id.data = id;
+    led_info_msg.active.data = active;
+    led_info_msg.mode.data = mode;
+    led_info_msg.device_id.data = device_id;
+    led_info_msg.link_name.data = link_name;
+
+    gzdbg << "Sending LED info message..." << std::endl;
+    this->led_info_pub->publish(led_info_msg);
+  }
+
+  // Service Callbacks
+  bool callbackSetFrequency(
+      const std::shared_ptr<mrs_msgs::srv::Float64Srv::Request> req,
+      std::shared_ptr<mrs_msgs::srv::Float64Srv::Response> res)
+  {
     if (mode == 0){
-      fs                     = req.value;
+      fs = req->value;
       publishData();
-      res.message = "Setting the sequence bitrate to ";
-      res.message += std::to_string(fs);
+      res->message = "Setting the sequence bitrate to " + std::to_string(fs);
     }
     else if (mode == 1){
-      fm                     = req.value;
+      fm = req->value;
       publishData();
-      res.message = "Setting the message bitrate to ";
-      res.message += std::to_string(fm);
+      res->message = "Setting the message bitrate to " + std::to_string(fm);
     }
-    ROS_INFO_STREAM(res.message);
-    res.success = true;
+    RCLCPP_INFO(this->nh->get_logger(), "%s", res->message.c_str());
+//    gzinfo << res->message << std::endl;
+    res->success = true;
     return true;
   }
 
-  bool callbackSetSequence(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res) {
-    ID                     = req.value;
+  bool callbackSetSequence(
+      const std::shared_ptr<mrs_msgs::srv::SetInt::Request> req,
+      std::shared_ptr<mrs_msgs::srv::SetInt::Response> res)
+  {
+    id= req->value;
     publishData();
-    res.message = "Setting the signal ID to ";
-    res.message += std::to_string(ID);
-    ROS_INFO_STREAM(res.message);
-    res.success = true;
+    res->message = "Setting the signal ID to " + std::to_string(id);
+    RCLCPP_INFO(this->nh->get_logger(), "%s", res->message.c_str());
+    //gzinfo << res->message << std::endl;
+    res->success = true;
     return true;
   }
 
-  bool callbackSetMode(mrs_msgs::SetInt::Request &req, mrs_msgs::SetInt::Response &res) {
-    mode                     = req.value;
+  bool callbackSetMode(
+      const std::shared_ptr<mrs_msgs::srv::SetInt::Request> req,
+      std::shared_ptr<mrs_msgs::srv::SetInt::Response> res)
+  {
+    mode = req->value;
     publishData();
-    res.message = "Setting the mode to ";
-    res.message += std::to_string(mode);
-    ROS_INFO_STREAM(res.message);
-    res.success = true;
+    res->message = "Setting the mode to " + std::to_string(mode);
+    //gzinfo << res->message << std::endl;
+    RCLCPP_INFO(this->nh->get_logger(), "%s", res->message.c_str());
+    res->success = true;
     return true;
   }
 
-  bool callbackSendMessage(uvdar_core::SetLedMessage::Request &req, uvdar_core::SetLedMessage::Response &res) {
-    if (mode == 1){
+  bool callbackSendMessage(
+      const std::shared_ptr<uvdar_core_msgs::srv::SetLedMessage::Request> req,
+      std::shared_ptr<uvdar_core_msgs::srv::SetLedMessage::Response> res)
+  {
+      if (mode == 1){
+          res->message = "Sending message";
+          led_msg_msg.link_name.data = link_name;
+          led_msg_msg.data_frame = req->data_frame;
 
-      res.message = "Sending message";
+          this->led_message_pub->publish(led_msg_msg);
+          res->success = true;
+          return true;
+      }
+      else {
+          res->message = "Will not send message - the appropriate mode is not set!";
+//          gzwarn << res->message << std::endl;
+          RCLCPP_WARN(this->nh->get_logger(), "%s", res->message.c_str());
+          res->success = false;
+          return true;
+      }
+  }
 
-      /* std::string message_text; */
-      /* for (auto b : req.data_frame){ */
-      /*   if (b == 0) */
-      /*     message_text += '0'; */
-      /*   else */ 
-      /*     message_text += '1'; */
-      /* } */
-      /* ROS_INFO_STREAM(res.message << " :" << message_text); */
+  bool callbackSetActive(
+          const std::shared_ptr<std_srvs::srv::SetBool::Request> req,
+          std::shared_ptr<std_srvs::srv::SetBool::Response> res)
+  {
+      active = req->data;
+      if (active)
+          res->message = "Activating LED";
+      else
+          res->message = "Deactivating LED";
 
-      led_msg.link_name.data = link_name;
-      led_msg.data_frame = req.data_frame;
-      led_message_pub.publish(led_msg);
-
-
-      res.success = true;
+      publishData();
+      res->success = true;
       return true;
-    }
-    else {
-      res.message = "Will not send message - the appropriate mode is not set!";
-      ROS_INFO_STREAM(res.message);
-      res.success = false;
-      return true;
-    }
   }
-
-  bool callbackSetActive(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res) {
-    active = req.data;
-    if  (active)
-      res.message = "Activating LED";
-    else
-      res.message = "Deactivating LED";
-    
-    publishData();
-
-    res.success = true;
-    return true;
-  }
-  /* void PubThread() { */
-  /*   ros::Rate r(2); */
-  /*   while (true) { */
-
-  /*     if (!true) { */
-  /*       publishData() */
-  /*       // std::cout << "Publishing base frequency, UVDAR in localization mode" << std::endl; */
-  /*     } else { */
-  /*       // std::cout << "Ignoring base frequency, UVDAR in RXTX mode" << device_id << std::endl; */
-  /*     } */
-  /*     r.sleep(); */
-  /*   } */
-  /* } */
-
-  void publishData(){
-        led_info.seq_bitrate.data = fs;
-        led_info.mes_bitrate.data = fm;
-        led_info.ID.data = ID;
-        led_info.active.data = active;
-        led_info.mode.data = mode;
-        led_info.device_id.data = device_id;
-        led_info.link_name.data = link_name;
-        
-        std::cout << "Sending LED info message..." << std::endl;
-        led_info_pub.publish(led_info);
-  }
-
-private:
-  event::ConnectionPtr updateConnection;
 };
-
-// Register this plugin with the simulator
-GZ_REGISTER_SENSOR_PLUGIN(UvLed)
-}  // namespace gazebo
+}
+GZ_ADD_PLUGIN(uvdar_gazebo_plugin::UvLed, gz::sim::System)

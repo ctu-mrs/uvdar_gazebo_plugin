@@ -27,7 +27,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/LedInfo.msg"
   "msg/CamInfo.msg"
   "msg/LedMessage.msg"
-  DEPENDENCIES std_msgs uvdar_core_msgs
+  DEPENDENCIES std_msgs uvdar_core_msgs  #std_msgs uvdar_core_msgs mrs_msgs sensor_msgs
 )
 
 # Include directories
@@ -36,8 +36,8 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
   ${gz-sim8_INCLUDE_DIRS}
   ${gz-transport13_INCLUDE_DIRS}
+  ${rosidl_generated_headers_INCLUDE_DIRS} 
 )
-
 # Link directories
 link_directories(
   ${OpenCV_LIBRARY_DIRS}
@@ -59,6 +59,10 @@ ament_target_dependencies(uvdar_led
   uvdar_core_msgs
   gz-sim8
   gz-transport13
+)
+
+rosidl_target_interfaces(uvdar_led
+  ${PROJECT_NAME} "rosidl_typesupport_cpp"
 )
 
 target_link_libraries(uvdar_led
@@ -123,6 +127,7 @@ ament_export_dependencies(
   gz-sim8
   gz-transport13
   OpenCV
+  rosidl_default_runtime
 )
 
 ament_package()
