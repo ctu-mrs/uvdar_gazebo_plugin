@@ -8,6 +8,7 @@
 #include <gz/transport/Node.hh> // For Gazebo Transport (optional but recommended)
 #include <gz/sim/components/Name.hh>
 #include <gz/common/Console.hh>
+#include <gz/math/Vector3.hh>
 
 // ROS 2 Headers
 #include "rclcpp/rclcpp.hpp"
@@ -17,7 +18,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_srvs/srv/set_bool.hpp>
-#include <ignition/math/Vector3.hh>
 #include <mutex>
 #include <uvdar_gazebo_plugin/msg/led_info.hpp>
 #include <uvdar_gazebo_plugin/msg/cam_info.hpp>
