@@ -14,15 +14,20 @@
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
-  
+  <depend>cv_bridge</depend>
+  <depend>ament_index_cpp</depend>
+
   <!-- MRS & Custom Dependencies -->
   <!-- Ensure these packages are installed as ROS 2 packages -->
   <depend>mrs_msgs</depend>
   <depend>uvdar_core</depend>
-  
+
   <!-- Gazebo Sim Dependencies -->
   <depend>gz-sim8</depend>
   <depend>gz-transport13</depend>
+  <depend>gazebo_msgs</depend>
+  <depend>gz-physics6</depend>
+  <depend>gz-math7</depend>
 
   <!-- OpenCV -->
   <depend>OpenCV</depend>
@@ -38,5 +43,6 @@
 
   <export>
     <build_type>ament_cmake</build_type>
+    <gazebo_ros gazebo_media_path="${prefix}"/>
   </export>
 </package>

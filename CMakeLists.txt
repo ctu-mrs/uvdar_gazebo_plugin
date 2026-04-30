@@ -14,13 +14,22 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(mrs_msgs REQUIRED) 
 find_package(uvdar_core_msgs REQUIRED) 
 find_package(OpenCV REQUIRED)
-find_package(gz-sim8 REQUIRED) 
-find_package(gz-transport13 REQUIRED) 
+find_package(gz-sim8 REQUIRED)
+find_package(gz-transport13 REQUIRED)
+find_package(gz-physics7 REQUIRED)
+find_package(ros_gz_interfaces REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(image_transport REQUIRED)
+find_package(ament_index_cpp REQUIRED)
+
+
 
 find_package(rosidl_default_generators REQUIRED) 
+
 
 # Generate ROS 2 interfaces
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -61,31 +70,34 @@ ament_target_dependencies(uvdar_led
   gz-transport13
 )
 
-rosidl_target_interfaces(uvdar_led
-  ${PROJECT_NAME} "rosidl_typesupport_cpp"
-)
+rosidl_get_typesupport_target(cpp_typesupport_target
+  "${PROJECT_NAME}" "rosidl_typesupport_cpp")
 
 target_link_libraries(uvdar_led
+  "${cpp_typesupport_target}"
   ${OpenCV_LIBRARIES}
 )
 
-## | ------------------------ uvdar_cam ----------------------- |
-#add_library(uvdar_cam SHARED
-#  src/uvcam.cc
-#  include/undistortFunctions/ocam_functions.cpp
-#  include/ObjectMgr/ObjectMgr.cpp
-#  include/ObjectMgr/LedMgr.cpp
-#)
 
-#ament_target_dependencies(uvdar_cam
-#  rclcpp
-#  sensor_msgs
-#  mrs_msgs
-#  uvdar_core_msgs
-#  gz-sim8
-#  gz-transport13
-#  OpenCV
-#)
+
+## | ------------------------ uvdar_cam ----------------------- |
+add_library(uvdar_cam SHARED
+  src/uvcam_ray.cc
+)
+
+ament_target_dependencies(uvdar_cam
+  rclcpp
+  std_msgs
+  mrs_msgs
+  uvdar_core_msgs
+  gz-sim8
+  gz-transport13
+)
+
+target_link_libraries(uvdar_cam
+    "${cpp_typesupport_target}"
+    ${OpenCV_LIBRARIES}
+)
 
 # --------------------------------------------------------------
 # |                           Testing                          |
@@ -99,9 +111,9 @@ endif()
 # |                           Install                          |
 # --------------------------------------------------------------
 
-install(TARGETS 
+install(TARGETS
   uvdar_led
-  #  uvdar_cam
+  uvdar_cam
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -117,9 +129,10 @@ install(DIRECTORY launch worlds models
 )
 
 ament_export_include_directories(include)
-#ament_export_libraries(uvdar_led uvdar_cam)
+ament_export_libraries(uvdar_led uvdar_cam)
 ament_export_dependencies(
   rclcpp
+  ament_index_cpp
   std_msgs
   sensor_msgs
   mrs_msgs
