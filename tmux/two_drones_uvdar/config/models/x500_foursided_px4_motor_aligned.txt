@@ -1,0 +1,40 @@
+# UVDAR LED model for the MRS x500, four-sided, PX4 motor aligned.
+# Same role as uvdar_core's config/models/quadrotor_foursided_px4_motor_aligned.txt
+# but for the x500 airframe: that file's ring radius is 0.2450 m, the x500's is
+# 0.2804 m (14% larger), and range estimates scale with it.
+#
+# LAYOUT: four arms in the usual X configuration, at bearings +-45 / +-135 deg,
+# all eight LEDs at radius 0.2804 m from the centre. Each arm carries TWO LEDs
+# mounted 10 mm apart and aimed 90 deg from one another (e.g. the front-left
+# arm has one facing +X and one facing +Y), so each arm covers a quadrant and
+# the vehicle is visible from any azimuth. This is NOT an octagon -- the eight
+# LEDs sit in four tight pairs (bearings 44/46, 134/136, -134/-136, -44/-46),
+# not at eight evenly spaced vertices.
+#
+# SIGNALS ARE PER ARM. The two LEDs on an arm blink identically and share a
+# signal_id: LED1/2 carry 2 (led3), LED3/4 carry 0 (led1), LED5/6 carry 1
+# (led2), LED7/8 carry 3 (led4). The pair exists to widen azimuth coverage
+# (aimed 90 deg apart), not to encode separate IDs. Consequence: when the two
+# merge into one blob at close range or high led_gain, nothing is lost -- the
+# blob still carries one unambiguous signal. Four arms means four IDs, which is
+# why the demo spawns signal_id:=[0,1,2,3]. Regenerate if that order changes.
+#
+# Derived from the placement math in mrs_uav_gazebo_simulator's x500.sdf.jinja /
+# uv_devices.sdf.jinja for `--enable-uv-leds signal_id:=[0,1,2,3]`, and verified
+# against it -- positions, signal mapping and z all match. NOT yet checked
+# against a physically measured x500.
+#
+# Note on Pitch: the SDF aims each LED along its local +Z (hence pitch 90 deg
+# there), while uvdar_core's BodyModel emits along local +X. Pitch is therefore
+# 0.0 here and the yaw column alone carries the direction -- do not copy the
+# SDF's pitch values into this file.
+#
+# X Y Z Type Pitch Yaw signal_id
+0.2017755  0.1947045  0 0 0.0 0             2
+0.1947045  0.2017755  0 0 0.0 1.57079632679 2
+0.1947045  -0.2017755 0 0 0.0 -1.57079632679 0
+0.2017755  -0.1947045 0 0 0.0 0             0
+-0.1947045 0.2017755  0 0 0.0 1.57079632679 1
+-0.2017755 0.1947045  0 0 0.0 3.14159265359 1
+-0.2017755 -0.1947045 0 0 0.0 -3.14159265359 3
+-0.1947045 -0.2017755 0 0 0.0 -1.57079632679 3

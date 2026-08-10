@@ -13,8 +13,11 @@
   <!-- C++ Runtime Dependencies -->
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
+  <!-- sensor_msgs: emulated bluefox camera image (see publish_image in uvcam_ray.cc) -->
   <depend>sensor_msgs</depend>
-  <depend>cv_bridge</depend>
+  <!-- tf2_ros/geometry_msgs: OcclusionCheck broadcasts its own camera frames -->
+  <depend>geometry_msgs</depend>
+  <depend>tf2_ros</depend>
   <depend>ament_index_cpp</depend>
 
   <!-- MRS & Custom Dependencies -->
@@ -24,9 +27,7 @@
 
   <!-- Gazebo Sim Dependencies -->
   <depend>gz-sim8</depend>
-  <depend>gz-transport13</depend>
-  <depend>gazebo_msgs</depend>
-  <depend>gz-physics6</depend>
+  <depend>gz-physics7</depend>
   <depend>gz-math7</depend>
 
   <!-- OpenCV -->

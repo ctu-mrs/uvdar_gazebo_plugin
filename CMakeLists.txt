@@ -14,21 +14,16 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 find_package(ament_index_cpp REQUIRED)
-find_package(mrs_msgs REQUIRED) 
-find_package(uvdar_core_msgs REQUIRED) 
+find_package(mrs_msgs REQUIRED)
+find_package(uvdar_core REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(gz-sim8 REQUIRED)
-find_package(gz-transport13 REQUIRED)
 find_package(gz-physics7 REQUIRED)
-find_package(ros_gz_interfaces REQUIRED)
-find_package(cv_bridge REQUIRED)
-find_package(image_transport REQUIRED)
-find_package(ament_index_cpp REQUIRED)
 
-
-
-find_package(rosidl_default_generators REQUIRED) 
+find_package(rosidl_default_generators REQUIRED)
 
 
 # Generate ROS 2 interfaces
@@ -36,7 +31,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/LedInfo.msg"
   "msg/CamInfo.msg"
   "msg/LedMessage.msg"
-  DEPENDENCIES std_msgs uvdar_core_msgs  #std_msgs uvdar_core_msgs mrs_msgs sensor_msgs
+  "srv/SetLedMessage.srv"
+  DEPENDENCIES std_msgs
 )
 
 # Include directories
@@ -44,8 +40,7 @@ include_directories(
   include
   ${OpenCV_INCLUDE_DIRS}
   ${gz-sim8_INCLUDE_DIRS}
-  ${gz-transport13_INCLUDE_DIRS}
-  ${rosidl_generated_headers_INCLUDE_DIRS} 
+  ${rosidl_generated_headers_INCLUDE_DIRS}
 )
 # Link directories
 link_directories(
@@ -64,10 +59,9 @@ add_library(uvdar_led SHARED
 ament_target_dependencies(uvdar_led
   rclcpp
   std_msgs
+  ament_index_cpp
   mrs_msgs
-  uvdar_core_msgs
   gz-sim8
-  gz-transport13
 )
 
 rosidl_get_typesupport_target(cpp_typesupport_target
@@ -75,26 +69,30 @@ rosidl_get_typesupport_target(cpp_typesupport_target
 
 target_link_libraries(uvdar_led
   "${cpp_typesupport_target}"
-  ${OpenCV_LIBRARIES}
 )
 
 
 
-## | ------------------------ uvdar_cam ----------------------- |
-add_library(uvdar_cam SHARED
+## | ------------------------ uvdar_occl_check ----------------------- |
+add_library(uvdar_occl_check SHARED
   src/uvcam_ray.cc
+  include/undistortFunctions/ocam_functions.cpp
 )
 
-ament_target_dependencies(uvdar_cam
+ament_target_dependencies(uvdar_occl_check
   rclcpp
   std_msgs
+  sensor_msgs
+  geometry_msgs
+  tf2_ros
+  ament_index_cpp
   mrs_msgs
-  uvdar_core_msgs
+  uvdar_core
   gz-sim8
-  gz-transport13
+  gz-physics7
 )
 
-target_link_libraries(uvdar_cam
+target_link_libraries(uvdar_occl_check
     "${cpp_typesupport_target}"
     ${OpenCV_LIBRARIES}
 )
@@ -113,13 +111,13 @@ endif()
 
 install(TARGETS
   uvdar_led
-  uvdar_cam
+  uvdar_occl_check
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
 
-install(DIRECTORY msg
+install(DIRECTORY msg srv config
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -129,16 +127,15 @@ install(DIRECTORY launch worlds models
 )
 
 ament_export_include_directories(include)
-ament_export_libraries(uvdar_led uvdar_cam)
+ament_export_libraries(uvdar_led uvdar_occl_check)
 ament_export_dependencies(
   rclcpp
   ament_index_cpp
   std_msgs
-  sensor_msgs
   mrs_msgs
-  uvdar_core_msgs
+  uvdar_core
   gz-sim8
-  gz-transport13
+  gz-physics7
   OpenCV
   rosidl_default_runtime
 )

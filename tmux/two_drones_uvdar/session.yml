@@ -1,0 +1,169 @@
+# do not modify these
+root: ./
+name: simulation
+socket_name: mrs
+attach: false
+tmux_options: -f /etc/ctu-mrs/tmux.conf
+# you can modify these
+pre_window:
+  - export RUN_TYPE=simulation
+  - export UAV_TYPE=x500
+  - export PLATFORM_CONFIG=`ros2 pkg prefix mrs_uav_gazebo_simulator`/share/mrs_uav_gazebo_simulator/config/mrs_uav_system/$UAV_TYPE.yaml
+  - export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+  - export USE_SIM_TIME="true"
+  # THE blink-rate knob. Read by BOTH uvdar_gazebo_plugin plugins: UvLed uses
+  # it as the LED bit rate, OcclusionCheck as its camera sampling rate. They
+  # must stay equal -- AMI buffers exactly one detector message per blink bit.
+  # 60 Hz, matching ROS1's camera_rate/blink default.
+  #
+  # Any rate works and is deterministic: UvLed and OcclusionCheck both derive
+  # their instants from the ABSOLUTE sim-time grid (floor(t*rate)), so the fact
+  # that they are separate plugins starting at different sim times no longer
+  # leaves an arbitrary phase between them. The bit period does NOT have to be
+  # a whole number of physics steps.
+  #
+  # History, so nobody re-breaks this: with each plugin anchored to its own
+  # first update instead, 4 of 24 possible start phases at 60 Hz decoded 0% for
+  # the entire run while the rest decoded 100% -- the "all -2 until I restart"
+  # symptom. 40/50 Hz hid it only because 25/20 ms are whole multiples of the
+  # 5 ms step.
+  - export UVDAR_SIM_BITRATE=60
+  # Bluefox emulator switch.
+  #   0 -> plugin publishes projected points only; detector_node does not run.
+  #        Use with config/uvdar.yaml.
+  #   1 -> plugin ALSO renders those points into a synthetic mono8 image on
+  #        /uav1_N/uvdar_bluefox/image_raw, and detector_node consumes it, so
+  #        the real FIMD detector is exercised. Use with
+  #        config/uvdar_detector.yaml.
+  # The plugin's points topic is published either way; with the emulator on it
+  # is nobody's input, it is the ground-truth reference to diff the detector's
+  # output against.
+  - export UVDAR_SIM_PUBLISH_IMAGE=1
+  # Emulated-image appearance. Only used when UVDAR_SIM_PUBLISH_IMAGE=1;
+  # both are also settable per-camera as SDF elements (<led_gain>,
+  # <background_level>) and are logged by OcclusionCheck at startup.
+  #
+  # LED_GAIN multiplies the modelled LED intensity, which is blob AREA, so the
+  # drawn radius scales as sqrt(gain). 1.0 reproduces ROS1's model exactly
+  # (coefficients from uvcam.cc:102), which treats the LED as an ideal point
+  # source with 1/d^2 falloff -- only ~1 px radius at 5 m. A real saturated UV
+  # LED blooms wider than that, hence the knob. Radius at 5 m:
+  #   gain 1 -> 1 px    gain 4 -> 2 px    gain 9 -> 3 px    gain 16 -> 4 px
+  # Gain applies at ALL ranges, so 9 also makes a 1 m LED ~10 px. At close range
+  # that merges the two LEDs sharing an arm (10 mm apart) into a single blob --
+  # which is FINE and is how the real thing behaves: blinking is set per ARM,
+  # both LEDs on an arm carry the same signal_id (verified against
+  # uv_devices.sdf.jinja: each signal maps to one arm, bearing spread 2 deg), so
+  # a merged blob still carries one unambiguous signal. The pair exists to widen
+  # azimuth coverage (aimed 90 deg apart), not to encode separate IDs.
+  - export UVDAR_SIM_LED_GAIN=9
+  # Grey level the frame is filled with before LEDs (drawn at 255) are added,
+  # giving the detector a noise floor to reject. Clamped to [0,100], safely
+  # under the detector's threshold of 120. Negative = ROS1's per-camera
+  # std::rand()%100, which is why the two cameras used to differ (one black,
+  # one grey) -- leave it fixed unless you specifically want that back.
+  - export UVDAR_SIM_BACKGROUND=30
+  # Must match the flag above: uvdar.yaml (emulator off) or
+  # uvdar_detector.yaml (emulator on).
+  - export UVDAR_CONFIG=./config/uvdar_detector.yaml
+startup_window: status
+windows:
+  - zenoh_router:
+      layout: tiled
+      panes:
+        - ros2 run rmw_zenoh_cpp rmw_zenohd
+  - gazebo:
+      layout: tiled
+      panes:
+        - ros2 launch mrs_uav_gazebo_simulator simulation.launch.py gz_headless:=false gz_verbose:=true
+        - |
+          # uav1 = observer: two forward-looking UV cameras (uav1_1, uav1_2).
+          #
+          # use_occlusions:=True -- LEDs hidden behind geometry (including the
+          # target's own airframe) are culled by raycasting. The prerequisite is
+          # satisfied here: gz-sim's RaycastData needs DART's bullet collision
+          # detector, and the dartsim plugin links libdart-collision-bullet /
+          # libBulletCollision. The plugin requests it via
+          # PhysicsCollisionDetector("bullet") in Configure().
+          #
+          # Two things to know:
+          #  - that switches the collision detector for the WHOLE world, not
+          #    just UVDAR, so contact/flight behaviour can change subtly;
+          #  - PreUpdate() builds its rays from camPose, which Update() sets, so
+          #    rays lag one physics step (5 ms). Harmless at these speeds.
+          # Set to False to rule occlusion out when debugging detection.
+          waitForGazebo; sleep 5; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '1 --$UAV_TYPE --pos 0.0 0.0 0.3 0.0 --enable-rangefinder --enable-dual-uv-cameras use_occlusions:=True'}"
+          #waitForGazebo; sleep 5; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '1 --$UAV_TYPE --pos 0.0 0.0 0.3 0.0 --enable-rangefinder'}"
+        - |
+          # uav2 = transmitter: 8 UV LEDs cycling through signal_id 0-3
+          # (2 LEDs per signal, see config/models/x500_foursided_px4_motor_aligned.txt).
+          # Must match tracking.sequences in config/uvdar.yaml.
+          waitForGazebo; sleep 8; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '2 --$UAV_TYPE --pos 5.0 0.0 0.3 0.7 --enable-rangefinder --enable-uv-leds signal_id:=[0,1,2,3]'}"
+          #waitForGazebo; sleep 8; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '2 --$UAV_TYPE --pos 5.0 0.0 0.3 0.7 --enable-rangefinder'}"
+  - px4_api:
+      layout: tiled
+      panes:
+        - export UAV_NAME=uav1; ros2 launch mrs_uav_px4_api api.launch.py
+        - export UAV_NAME=uav2; ros2 launch mrs_uav_px4_api api.launch.py
+  - core:
+      layout: tiled
+      panes:
+        - export UAV_NAME=uav1;
+          waitForHwApi; sleep 10;
+          ros2 launch mrs_uav_core core.launch.py
+          platform_config:=$PLATFORM_CONFIG
+          world_config:=./config/world_config.yaml
+          custom_config:=./config/custom_config.yaml
+          network_config:=./config/network_config.yaml
+        - export UAV_NAME=uav2;
+          waitForHwApi; sleep 10;
+          ros2 launch mrs_uav_core core.launch.py
+          platform_config:=$PLATFORM_CONFIG
+          world_config:=./config/world_config.yaml
+          custom_config:=./config/custom_config.yaml
+          network_config:=./config/network_config.yaml
+  - status:
+      layout: tiled
+      panes:
+        - export UAV_NAME=uav1; ros2 run mrs_uav_status status.sh
+        - export UAV_NAME=uav2; ros2 run mrs_uav_status status.sh
+  - autostart:
+      layout: tiled
+      panes:
+        - export UAV_NAME=uav1; ros2 launch mrs_uav_autostart automatic_start.launch.py custom_config:=./config/automatic_start.yaml
+        - export UAV_NAME=uav2; ros2 launch mrs_uav_autostart automatic_start.launch.py custom_config:=./config/automatic_start.yaml
+  - takeoff:
+      layout: tiled
+      panes:
+        - export UAV_NAME=uav1; waitForCore; sleep 10; ./takeoff.sh
+        - export UAV_NAME=uav2; waitForCore; sleep 10; ./takeoff.sh
+  - uvdar:
+      layout: even-vertical
+      panes:
+        - |
+          # detector_node only runs in emulator mode (UVDAR_SIM_PUBLISH_IMAGE=1),
+          # where the plugin renders a real camera image for it to process.
+          # With the flag off the plugin publishes detector-format points
+          # directly and this stage is skipped entirely, as before.
+          if [ "$UVDAR_SIM_PUBLISH_IMAGE" = "1" ]; then
+            waitForGazebo; sleep 18; ros2 launch uvdar_core detector.launch.py config_file:=$UVDAR_CONFIG
+          else
+            echo "bluefox emulator disabled (UVDAR_SIM_PUBLISH_IMAGE=0) -- detector_node not started"
+          fi
+        - |
+          # Subscribes to the plugin's points directly (uvdar.yaml) or to
+          # detector_node's output (uvdar_detector.yaml) -- selected by
+          # $UVDAR_CONFIG, which must match $UVDAR_SIM_PUBLISH_IMAGE.
+          waitForGazebo; sleep 20; ros2 launch uvdar_core tracker.launch.py config_file:=$UVDAR_CONFIG
+        - |
+          # No static_transform_publisher any more: OcclusionCheck broadcasts
+          # <model>/fcu -> <model>/uvcam_<id>_{link,optical} itself, computed
+          # from the ECM (publish_camera_tf in uvcam_ray.cc). That removes the
+          # hand-copied SDF offsets, the hardcoded uav1 name, and the silent
+          # breakage when spawn arguments change. config/*.yaml consume the
+          # *_optical frame.
+          waitForGazebo; sleep 22; ros2 launch uvdar_core pose_estimator.launch.py config_file:=$UVDAR_CONFIG
+  - rviz:
+      layout: tiled
+      panes:
+        - export UAV_NAME=uav1; waitForCore; ros2 run rviz2 rviz2 --ros-args -p use_sim_time:=true

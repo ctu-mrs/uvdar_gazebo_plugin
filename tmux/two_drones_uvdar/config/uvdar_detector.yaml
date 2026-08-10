@@ -1,0 +1,218 @@
+# uvdar_core config for the two_drones_uvdar demo -- EMULATED CAMERA variant.
+#
+# This is the sibling of uvdar.yaml. Use it together with
+# UVDAR_SIM_PUBLISH_IMAGE=1, which makes uvdar_gazebo_plugin's OcclusionCheck
+# render its projected LEDs into a synthetic mono8 image (the ROS1
+# "bluefox_emulator" behaviour) instead of only publishing points.
+#
+# Pipeline here:
+#   plugin -> /uav1_N/uvdar_bluefox/image_raw
+#          -> detector_node -> /detector/uav1_N/points_seen
+#          -> tracker_node  -> pose_estimator_node
+#
+# versus uvdar.yaml, where the plugin's points go straight into tracker_node
+# and detector_node never runs. Use this file to actually exercise the FIMD
+# detector; use uvdar.yaml for the cheaper, ground-truth path.
+#
+# The plugin keeps publishing /uav1_N/uvdar_bluefox/points in both modes. Here
+# it is nobody's input -- it is the ground-truth reference to diff the
+# detector's output against.
+
+detector:
+  debug: false
+  gui: false
+  initial_delay_sec: 0.0
+  queue_depth: 10
+  thread_pool_size: 2
+  max_points_per_image: 100
+  inputs:
+    - name: uav1_1
+      input_topic: /uav1_1/uvdar_bluefox/image_raw
+      output_topic: /detector/uav1_1/points_seen
+      detect_sun_points: true 
+      publish_sun_points: true 
+      sun_output_topic: /detector/uav1_1/points_seen/sun
+      publish_visualization: false 
+      visualization_topic: /detector/uav1_1/detection_visualization
+      mask_file: ""
+      # cpu, not gpu: the GPU backend needs EGL/GBM/DRM devices, which are not
+      # reliably available in a sim session. Switch to gpu to exercise the
+      # compute-shader path once the cpu path is confirmed working.
+      backend: cpu
+      # The plugin fills the background with a random level in [0,100) and
+      # draws LEDs at 255, so 120 sits cleanly between the two.
+      threshold: 120
+      threshold_diff: 60
+      threshold_sun: 240
+      min_sun_marker_distance: 20
+      max_markers_count: 300
+      max_sun_points_count: 72000
+      radii: [3, 5]
+    - name: uav1_2
+      input_topic: /uav1_2/uvdar_bluefox/image_raw
+      output_topic: /detector/uav1_2/points_seen
+      detect_sun_points: true 
+      publish_sun_points: true 
+      sun_output_topic: /detector/uav1_2/points_seen/sun
+      publish_visualization: false 
+      visualization_topic: /detector/uav1_2/detection_visualization
+      mask_file: ""
+      backend: cpu
+      threshold: 120
+      threshold_diff: 60
+      threshold_sun: 240
+      min_sun_marker_distance: 20
+      max_markers_count: 300
+      max_sun_points_count: 72000
+      radii: [3, 5]
+
+tracking:
+  implementation: generalized 
+  # Set true to print the reconstructed per-track bit vector AMI matches
+  # against `sequences` below -- useful when markers decode as -2. Costs real
+  # CPU: it is an unbuffered std::cout per tracked point per frame (~8 tracks
+  # x 60 Hz), so leave it off unless actively debugging a decode failure.
+  debug: false
+  gui: false
+  initial_delay_sec: 0.0
+  queue_depth: 10
+  thread_pool_size: 2
+  max_points_per_image: 100
+  max_px_shift_x: 3
+  max_px_shift_y: 3
+  max_zeros_consecutive: 10
+  stored_seq_len_factor: 20
+  max_buffer_length: 5000
+  poly_order: 4
+  decay_factor: 0.1
+  confidence_probability: 95.0
+  # 0 is correct: the simulator is deterministic (no real optical noise), so
+  # every message should be an exact bit once uvcam_ray.cc publishes at the
+  # LED blink bitrate instead of every physics step (see the points_rate fix
+  # in that plugin). Raising this would only mask a real reconstruction bug.
+  allowed_BER_per_seq: 0
+  manchester_code: false
+  # Must match the 4 sequences the LEDs cycle through -- see
+  # uvdar_gazebo_plugin/config/sequences/default.txt (the plugin's default),
+  # and the spawn command's "--enable-uv-leds signal_id:=[0,1,2,3]" below.
+  sequence_file: ""
+  sequences:
+    - "111001011"
+    - "110011010"
+    - "101100111"
+    - "100111010"
+  inputs:
+    # uav1's two forward-looking UV cameras (dual_uv_cameras_macro).
+    #
+    # Input is detector_node's output, NOT the plugin's own points topic --
+    # that is the whole point of this config variant. The plugin's
+    # /uav1_N/uvdar_bluefox/points is still published and is the ground-truth
+    # reference to diff these detections against.
+    #
+    # input_image_topic is set so the tracker overlays its markers on the
+    # emulated camera frame instead of a black canvas -- with a real image in
+    # the pipeline this is genuinely useful for spotting threshold problems.
+    #
+    # COST: each enabled camera renders and serialises a 752x480 BGR image
+    # every frame -- ~1.08 MB x 60 Hz x 2 cameras = ~130 MB/s through the
+    # middleware. This is by far the most expensive thing in the tracker.
+    # Set publish_visualization to false on both inputs when you are not
+    # actively looking at rqt_image_view.
+    - name: uav1_1
+      input_topic: /detector/uav1_1/points_seen
+      input_image_topic: /uav1_1/uvdar_bluefox/image_raw
+      output_topic: /tracker/uav1_1/blinkers
+      publish_visualization: true
+      visualization_topic: /tracker/uav1_1/visualization
+    - name: uav1_2
+      input_topic: /detector/uav1_2/points_seen
+      input_image_topic: /uav1_2/uvdar_bluefox/image_raw
+      output_topic: /tracker/uav1_2/blinkers
+      publish_visualization: true
+      visualization_topic: /tracker/uav1_2/visualization
+
+pose_estimation:
+  implementation: particle_filter
+  debug: true 
+  # uav1's own body frame (the observing robot) -- NOT the world-fixed frame
+  # used by `filtering` below. "local_origin" doesn't exist in the ROS2 MRS
+  # TF tree (see mrs_uav_gazebo_simulator's rviz configs), which is why
+  # pose_estimator_node was warning it couldn't find it.
+  output_frame: uav1/fcu
+  output_topic: /pose_estimator/measured_poses
+  publish_constituents: true 
+  # x500 LED geometry for signal_id:=[0,1,2,3]: 4 arms, 2 LEDs each at 90 deg;
+  # see the comment at the top of that file. Not yet empirically verified.
+  model_file: models/x500_foursided_px4_motor_aligned.txt
+  signal_ids: [0, 1, 2, 3]
+  publish_period_sec: 0.1
+  particle_filter:
+    separate_by_distance: true
+    max_cluster_distance: 100.0
+    scatter_time_step: 0.1
+    mutation_position_max_step: 1.0
+    mutation_orientation_max_step: 1.0
+    mutation_velocity_max_step: 1.0
+    max_hypothesis_count: 1000
+    max_hypothesis_age: 1.5
+    edge_detection_margin: 10
+    initial_rough_hypothesis_count: 200
+    initial_hypothesis_count: 10
+    max_init_iterations: 10000
+    max_mutation_refine_iterations: 1000
+  geometric_solver:
+    p4p_reprojection_threshold_rad: 0.01
+    covariance_regularization_px: 1.0e-6
+    refinement_iterations: 8
+    pnp_max_iterations: 40
+    pnp_damping: 1.0e-8
+    pnp_finite_difference_eps: 1.0e-6
+    pnp_step_tolerance: 1.0e-10
+    pnp_residual_tolerance: 1.0e-10
+  inputs:
+    # camera_frame must be the *_optical frame, not *_link. OcclusionCheck
+    # broadcasts both as static TF from <model>/fcu (see publish_camera_tf in
+    # uvcam_ray.cc), derived from the ECM so they cannot drift out of sync with
+    # the SDF. The optical one (Z fwd, X right, Y down) is what uvdar_core's
+    # lens model expects; *_link is the raw Gazebo link frame, published for
+    # rviz. Check with:
+    #   ros2 run tf2_ros tf2_echo uav1/fcu uav1/uvcam_uav1_1_optical
+    - name: uav1_1
+      input_topic: /tracker/uav1_1/blinkers
+      camera_frame: uav1/uvcam_uav1_1_optical
+      calib_file: camera/ocam.yaml
+    - name: uav1_2
+      input_topic: /tracker/uav1_2/blinkers
+      camera_frame: uav1/uvcam_uav1_2_optical
+      calib_file: camera/ocam.yaml
+
+filtering:
+  implementation: kf_pose
+  debug: false
+  # uav1's world-fixed frame (ROS2 MRS's per-robot equivalent of ROS1's
+  # "local_origin"; see mrs_uav_gazebo_simulator's rviz configs).
+  output_frame: uav1/fixed_origin
+  measured_poses_topics: [/pose_estimator/measured_poses]
+  output_topic: /filter/filtered_poses
+  tentative_output_topic: /filter/filtered_poses/tentative
+  output_framerate: 20.0
+  anonymous_measurements: false
+  indoor: false
+  odometry_available: true
+  use_velocity: false
+  min_measurements_to_validation: 10
+  decay_age_normal: 3.0
+  decay_age_unvalidated: 1.0
+  match_level_threshold_associate: 0.3
+  match_level_threshold_remove: 0.5
+
+# Required by the shared config loader; not used by tracker_node or
+# pose_estimator_node (they don't run in this demo -- detector_node's
+# section above is inert filler for the same reason).
+calibration:
+  enabled: false
+  implementation: none
+
+simulation:
+  enabled: false
+  implementation: none
