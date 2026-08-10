@@ -122,12 +122,6 @@ windows:
           # $UVDAR_CONFIG, which must match $UVDAR_SIM_PUBLISH_IMAGE.
           waitForGazebo; sleep 20; ros2 launch uvdar_core tracker.launch.py config_file:=$UVDAR_CONFIG
         - |
-          # No static_transform_publisher any more: OcclusionCheck broadcasts
-          # <model>/fcu -> <model>/uvcam_<id>_{link,optical} itself, computed
-          # from the ECM (publish_camera_tf in uvcam_ray.cc). That removes the
-          # hand-copied SDF offsets, the hardcoded uav1 name, and the silent
-          # breakage when spawn arguments change. config/*.yaml consume the
-          # *_optical frame.
           waitForGazebo; sleep 22; ros2 launch uvdar_core pose_estimator.launch.py config_file:=$UVDAR_CONFIG
   - rviz:
       layout: tiled
