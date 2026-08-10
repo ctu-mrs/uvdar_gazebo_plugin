@@ -41,4 +41,4 @@ mrs_uav_trackers:
   mpc_tracker:
     collision_avoidance:
       radius: 2.0 # [m]
-      enabled: false 
+      enabled: true

@@ -11,22 +11,6 @@ pre_window:
   - export PLATFORM_CONFIG=`ros2 pkg prefix mrs_uav_gazebo_simulator`/share/mrs_uav_gazebo_simulator/config/mrs_uav_system/$UAV_TYPE.yaml
   - export RMW_IMPLEMENTATION=rmw_zenoh_cpp
   - export USE_SIM_TIME="true"
-  # THE blink-rate knob. Read by BOTH uvdar_gazebo_plugin plugins: UvLed uses
-  # it as the LED bit rate, OcclusionCheck as its camera sampling rate. They
-  # must stay equal -- AMI buffers exactly one detector message per blink bit.
-  # 60 Hz, matching ROS1's camera_rate/blink default.
-  #
-  # Any rate works and is deterministic: UvLed and OcclusionCheck both derive
-  # their instants from the ABSOLUTE sim-time grid (floor(t*rate)), so the fact
-  # that they are separate plugins starting at different sim times no longer
-  # leaves an arbitrary phase between them. The bit period does NOT have to be
-  # a whole number of physics steps.
-  #
-  # History, so nobody re-breaks this: with each plugin anchored to its own
-  # first update instead, 4 of 24 possible start phases at 60 Hz decoded 0% for
-  # the entire run while the rest decoded 100% -- the "all -2 until I restart"
-  # symptom. 40/50 Hz hid it only because 25/20 ms are whole multiples of the
-  # 5 ms step.
   - export UVDAR_SIM_BITRATE=60
   # Bluefox emulator switch.
   #   0 -> plugin publishes projected points only; detector_node does not run.
@@ -49,19 +33,11 @@ pre_window:
   # source with 1/d^2 falloff -- only ~1 px radius at 5 m. A real saturated UV
   # LED blooms wider than that, hence the knob. Radius at 5 m:
   #   gain 1 -> 1 px    gain 4 -> 2 px    gain 9 -> 3 px    gain 16 -> 4 px
-  # Gain applies at ALL ranges, so 9 also makes a 1 m LED ~10 px. At close range
-  # that merges the two LEDs sharing an arm (10 mm apart) into a single blob --
-  # which is FINE and is how the real thing behaves: blinking is set per ARM,
-  # both LEDs on an arm carry the same signal_id (verified against
-  # uv_devices.sdf.jinja: each signal maps to one arm, bearing spread 2 deg), so
-  # a merged blob still carries one unambiguous signal. The pair exists to widen
-  # azimuth coverage (aimed 90 deg apart), not to encode separate IDs.
   - export UVDAR_SIM_LED_GAIN=9
   # Grey level the frame is filled with before LEDs (drawn at 255) are added,
   # giving the detector a noise floor to reject. Clamped to [0,100], safely
   # under the detector's threshold of 120. Negative = ROS1's per-camera
-  # std::rand()%100, which is why the two cameras used to differ (one black,
-  # one grey) -- leave it fixed unless you specifically want that back.
+  # std::rand()%100, which is why the two cameras used to differ 
   - export UVDAR_SIM_BACKGROUND=30
   # Must match the flag above: uvdar.yaml (emulator off) or
   # uvdar_detector.yaml (emulator on).
@@ -78,19 +54,9 @@ windows:
         - ros2 launch mrs_uav_gazebo_simulator simulation.launch.py gz_headless:=false gz_verbose:=true
         - |
           # uav1 = observer: two forward-looking UV cameras (uav1_1, uav1_2).
-          #
           # use_occlusions:=True -- LEDs hidden behind geometry (including the
-          # target's own airframe) are culled by raycasting. The prerequisite is
-          # satisfied here: gz-sim's RaycastData needs DART's bullet collision
-          # detector, and the dartsim plugin links libdart-collision-bullet /
-          # libBulletCollision. The plugin requests it via
-          # PhysicsCollisionDetector("bullet") in Configure().
+          # target's own airframe) are culled by raycasting. 
           #
-          # Two things to know:
-          #  - that switches the collision detector for the WHOLE world, not
-          #    just UVDAR, so contact/flight behaviour can change subtly;
-          #  - PreUpdate() builds its rays from camPose, which Update() sets, so
-          #    rays lag one physics step (5 ms). Harmless at these speeds.
           # Set to False to rule occlusion out when debugging detection.
           waitForGazebo; sleep 5; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '1 --$UAV_TYPE --pos 0.0 0.0 0.3 0.0 --enable-rangefinder --enable-dual-uv-cameras use_occlusions:=True'}"
           #waitForGazebo; sleep 5; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '1 --$UAV_TYPE --pos 0.0 0.0 0.3 0.0 --enable-rangefinder'}"
