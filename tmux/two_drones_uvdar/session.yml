@@ -42,6 +42,7 @@ pre_window:
   # Must match the flag above: uvdar.yaml (emulator off) or
   # uvdar_detector.yaml (emulator on).
   - export UVDAR_CONFIG=./config/uvdar_detector.yaml
+#  - export UVDAR_CONFIG=./config/uvdar.yaml
 startup_window: status
 windows:
   - zenoh_router:
@@ -58,7 +59,7 @@ windows:
           # target's own airframe) are culled by raycasting. 
           #
           # Set to False to rule occlusion out when debugging detection.
-          waitForGazebo; sleep 5; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '1 --$UAV_TYPE --pos 0.0 0.0 0.3 0.0 --enable-rangefinder --enable-dual-uv-cameras use_occlusions:=True'}"
+          waitForGazebo; sleep 5; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '1 --$UAV_TYPE --pos 0.0 0.0 0.3 0.0 --enable-rangefinder --enable-dual-uv-cameras use_occlusions:=False'}"
           #waitForGazebo; sleep 5; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '1 --$UAV_TYPE --pos 0.0 0.0 0.3 0.0 --enable-rangefinder'}"
         - |
           # uav2 = transmitter: 8 UV LEDs cycling through signal_id 0-3

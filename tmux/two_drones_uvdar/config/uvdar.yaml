@@ -41,7 +41,7 @@ detector:
       radii: [3, 5]
 
 tracking:
-  implementation: ami
+  implementation: generalized
   # Set true to print the reconstructed per-track bit vector AMI matches
   # against `sequences` below -- useful when markers decode as -2. Costs real
   # CPU: it is an unbuffered std::cout per tracked point per frame (~8 tracks
@@ -100,7 +100,7 @@ tracking:
       visualization_topic: /tracker/uav1_2/visualization
 
 pose_estimation:
-  implementation: particle_filter
+  implementation: geometric_solver
   debug: false
   # uav1's own body frame (the observing robot) -- NOT the world-fixed frame
   # used by `filtering` below. "local_origin" doesn't exist in the ROS2 MRS
