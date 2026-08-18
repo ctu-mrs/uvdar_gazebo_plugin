@@ -140,6 +140,9 @@ pose_estimation:
   # pose_estimator_node was warning it couldn't find it.
   output_frame: uav1/fcu
   output_topic: /pose_estimator/measured_poses
+  publish_visualization: true
+  visualization_topic: /pose_estimator/visualization
+  visualization_fps: 5.0
   publish_constituents: true 
   # x500 LED geometry for signal_id:=[0,1,2,3]: 4 arms, 2 LEDs each at 90 deg;
   # see the comment at the top of that file. Not yet empirically verified.
