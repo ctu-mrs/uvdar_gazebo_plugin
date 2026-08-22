@@ -37,6 +37,40 @@ Build the package using catkin tools (e.g. `catkin build uvdar_gazebo_plugin`)
 ## Testing
 See in [uvdar_core](https://github.com/ctu-mrs/uvdar_core)
 
+## ROS 2 LED image model
+
+The Gazebo Sim camera plugin projects every visible LED with the OCamCalib
+model and computes its integrated sensor signal as
+
+```text
+I(theta) = ((m + 1) P / (2 pi)) cos(theta)^m
+S_ADU = (I(theta) / d^2) A_aperture tau t_exp
+        (lambda / (h c)) eta_QE / g_e/ADU.
+```
+
+`P` is total LED radiant power, `m` is its Lambertian order, and `theta` is
+measured from the LED link's configured local emission axis. `A_aperture` is
+the equivalent entrance-pupil area, `tau` is combined lens/filter
+transmission, `t_exp` is exposure time, `lambda` is LED wavelength, `eta_QE`
+is sensor quantum efficiency and `g_e/ADU` is the sensor conversion gain.
+There is no distance or exposure-dependent visibility cutoff: inverse-square
+attenuation, mono8 quantization, and the downstream detector threshold make a
+source disappear naturally.
+
+The signal is integrated over a subpixel Gaussian point-spread function before
+all LEDs are added and the mono8 sensor is clipped. This produces a bright
+centre, saturation bloom and correct subpixel centroids instead of uniform
+white disks.
+
+The supplied SDF configuration uses 1 W, first-order Lambertian emitters and
+an explicitly parameterized optical chain. The settings are exposed as
+`power_w`, `lambertian_order`, `emission_axis`, `exposure_us`,
+`aperture_diameter`, `optical_transmission`, `quantum_efficiency`,
+`wavelength_nm`, `electrons_per_adu`, and `psf_sigma` SDF elements.
+`UVDAR_SIM_LED_GAIN`, `UVDAR_SIM_EXPOSURE_US`, and `UVDAR_SIM_PSF_SIGMA`
+provide runtime overrides. The image background remains the configured flat
+level; no Gazebo scene rendering is performed.
+
 ## Acknowledgements
 
 ### MRS group

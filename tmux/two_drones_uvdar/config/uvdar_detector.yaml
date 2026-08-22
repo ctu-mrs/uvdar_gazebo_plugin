@@ -39,8 +39,9 @@ detector:
       # reliably available in a sim session. Switch to gpu to exercise the
       # compute-shader path once the cpu path is confirmed working.
       backend: cpu
-      # The plugin fills the background with a random level in [0,100) and
-      # draws LEDs at 255, so 120 sits cleanly between the two.
+      # The plugin keeps its flat background in [0,100] and adds radiometric
+      # LED PSFs. This threshold, quantization, and optical attenuation
+      # determine visibility; the simulator imposes no distance cutoff.
       threshold: 120
       threshold_diff: 60
       threshold_sun: 240

@@ -21,6 +21,8 @@
 #include <uvdar_gazebo_plugin/msg/cam_info.hpp>
 #include <uvdar_gazebo_plugin/msg/led_message.hpp>
 #include <uvdar_gazebo_plugin/components/led_blink.hpp>
+#include <uvdar_gazebo_plugin/components/led_optics.hpp>
+#include <uvdar_gazebo_plugin/led_optics_model.hpp>
 #include <uvdar_core/msg/image_points_with_covariances_stamped.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
@@ -84,23 +86,18 @@ namespace uvdar_gazebo_plugin {
       gz::math::Pose3d camPose;
       std::map<std::string, gz::sim::Entity> ledEntities;
 
-      struct ocam_model oc_model;
+      struct ocam_model oc_model{};
       bool calibration_loaded = false;
 
-      // LED apparent-intensity model: intensity = cosAngle * (c0 + c1/(d+c2)^2)
-      // Coefficients are ROS1's (uvcam.cc:102), fitted to the real bluefox +
-      // UV LED. Intensity is in *lit pixels*: the drawn blob has area
-      // pi*r^2 == intensity, so it falls off as 1/d^2 and is only ~3 px at 5 m.
-      double coef[3] = {1.3398, 31.4704, 0.0154};
-      double min_intensity = 0.1;
-      // Multiplies the modelled intensity, i.e. blob AREA. 1.0 reproduces ROS1
-      // exactly; raise it to emulate a brighter LED / longer exposure (a real
-      // saturated LED blooms across more pixels than the ideal point-source
-      // model predicts). Radius scales as sqrt(gain).
+      // Radiometric LED-to-camera model. Visibility emerges from the optical
+      // setup, mono8 quantization and the detector, never a distance cutoff.
+      uvdar_gazebo_plugin::optics::CameraResponse camera_response;
+      // Multiplicative camera response / exposure adjustment.  LED power is
+      // supplied per emitter through the LedOptics ECS component.
       double led_gain = 1.0;
       // Only used when covariance_model == "constant".
       double pixel_covariance = 1.0;
-      // "blob"     -- derive the covariance from the LED's apparent blob, so the
+      // "blob"     -- derive the covariance from the LED's clipped PSF, so the
       //               direct points path reports what uvdar_core's detector
       //               would have measured off the emulated image. Default.
       // "constant" -- legacy flat isotropic pixel_covariance, identical for
@@ -141,66 +138,79 @@ namespace uvdar_gazebo_plugin {
         return true;
       }
 
-      // Covariance of the LED's image position, matching what uvdar_core's FIMD
-      // detector would report for the same blob, so switching
-      // UVDAR_SIM_PUBLISH_IMAGE does not silently change the noise model.
-      //
-      void blobCovariance(double cx, double cy, double radius,
+      void addPsf(cv::Mat &signal_frame, double cx, double cy,
+          double signal_adu) const {
+        const double sigma = this->camera_response.psf_sigma_px;
+        const int radius = uvdar_gazebo_plugin::optics::psfSupportRadius(
+            signal_adu, sigma);
+        const int cxi = static_cast<int>(std::floor(cx));
+        const int cyi = static_cast<int>(std::floor(cy));
+
+        for (int py = cyi - radius; py <= cyi + radius + 1; ++py) {
+          if (py < 0 || py >= signal_frame.rows) {
+            continue;
+          }
+          for (int px = cxi - radius; px <= cxi + radius + 1; ++px) {
+            if (px < 0 || px >= signal_frame.cols) {
+              continue;
+            }
+            const double mass = uvdar_gazebo_plugin::optics::gaussianPixelMass(
+                static_cast<double>(px), static_cast<double>(py), cx, cy, sigma);
+            signal_frame.at<double>(py, px) += signal_adu * mass;
+          }
+        }
+      }
+
+      // Intensity-weighted spatial covariance of the clipped PSF.  Strong
+      // nearby LEDs acquire a larger covariance as more of the Gaussian halo
+      // saturates, while a dim unresolved source approaches the pixel-grid
+      // floor.
+      void blobCovariance(double cx, double cy, double signal_adu,
           double &c00, double &c01, double &c11) const {
         constexpr double kPixelDiscretizationVariance = 1.0 / 12.0;
+        const double sigma = this->camera_response.psf_sigma_px;
+        const int radius = uvdar_gazebo_plugin::optics::psfSupportRadius(
+            signal_adu, sigma);
+        const int cxi = static_cast<int>(std::floor(cx));
+        const int cyi = static_cast<int>(std::floor(cy));
+        const double saturation_signal =
+            255.0 - static_cast<double>(this->background_level);
 
-        const int r = static_cast<int>(std::lround(radius));
-        const int cxi = static_cast<int>(std::lround(cx));
-        const int cyi = static_cast<int>(std::lround(cy));
-
-        // Welford's online algorithm, matching the detector's accumulator
-        // (postprocess.hpp) 
-        double n = 0.0;
+        double sum_weights = 0.0;
         double mean_x = 0.0, mean_y = 0.0;
         double m2xx = 0.0, m2xy = 0.0, m2yy = 0.0;
-        if (r > 0) {
-          const long long r2 = static_cast<long long>(r) * r;
-          for (int dy = -r; dy <= r; ++dy) {
-            for (int dx = -r; dx <= r; ++dx) {
-              if (static_cast<long long>(dx) * dx + static_cast<long long>(dy) * dy > r2) {
-                continue;
-              }
-              const int px = cxi + dx;
-              const int py = cyi + dy;
-              // cv::circle clips, so pixels outside the sensor are never lit
-              // and must not contribute 
-              if (px < 0 || px >= oc_model.width || py < 0 || py >= oc_model.height) {
-                continue;
-              }
-              const double x = static_cast<double>(px);
-              const double y = static_cast<double>(py);
-
-              n += 1.0;
-              // Deviation from the mean BEFORE this sample is folded in...
-              const double dx_old = x - mean_x;
-              const double dy_old = y - mean_y;
-              mean_x += dx_old / n;
-              mean_y += dy_old / n;
-              // ...multiplied by the deviation from the mean AFTER. The two
-              // differ by exactly the amount the mean just moved, and that
-              // product is what makes the running sum come out exact.
-              m2xx += dx_old * (x - mean_x);
-              m2yy += dy_old * (y - mean_y);
-              m2xy += dx_old * (y - mean_y);
+        for (int py = cyi - radius; py <= cyi + radius + 1; ++py) {
+          for (int px = cxi - radius; px <= cxi + radius + 1; ++px) {
+            if (px < 0 || px >= oc_model.width || py < 0 || py >= oc_model.height) {
+              continue;
             }
+            const double mass = uvdar_gazebo_plugin::optics::gaussianPixelMass(
+                static_cast<double>(px), static_cast<double>(py), cx, cy, sigma);
+            const double weight = std::min(saturation_signal, signal_adu * mass);
+            if (weight <= 0.0) {
+                continue;
+            }
+
+            const double new_sum = sum_weights + weight;
+            const double dx_old = static_cast<double>(px) - mean_x;
+            const double dy_old = static_cast<double>(py) - mean_y;
+            mean_x += (weight / new_sum) * dx_old;
+            mean_y += (weight / new_sum) * dy_old;
+            m2xx += weight * dx_old * (static_cast<double>(px) - mean_x);
+            m2xy += weight * dx_old * (static_cast<double>(py) - mean_y);
+            m2yy += weight * dy_old * (static_cast<double>(py) - mean_y);
+            sum_weights = new_sum;
           }
         }
 
-        if (n <= 1.0) {
-          // Single lit pixel: no measurable spread, so the grid floor is the
-          // entire uncertainty. Same branch the detector takes for count == 1.
+        if (sum_weights <= 0.0) {
           c00 = kPixelDiscretizationVariance;
           c01 = 0.0;
           c11 = kPixelDiscretizationVariance;
           return;
         }
 
-        const double inv = 1.0 / (n - 1.0);   // detector uses sum_weights - 1, weight 1/px
+        const double inv = 1.0 / sum_weights;
         c00 = m2xx * inv + kPixelDiscretizationVariance;
         c01 = m2xy * inv;
         c11 = m2yy * inv + kPixelDiscretizationVariance;
@@ -290,8 +300,11 @@ namespace uvdar_gazebo_plugin {
         }
       }
 
-      bool projectLed(const gz::math::Pose3d &ledPose, double point2D[2],
-          double *radius_out = nullptr) const {
+      bool projectLed(
+          const gz::math::Pose3d &ledPose,
+          const uvdar_gazebo_plugin::components::LedOpticsData &led_optics,
+          double point2D[2],
+          double *signal_adu_out = nullptr) const {
         const gz::math::Vector3d ledInCam = ledPose.CoordPositionSub(camPose);
         double input[3] = {
           -ledInCam.Z(),
@@ -323,24 +336,38 @@ namespace uvdar_gazebo_plugin {
           return false;
         }
 
-        gz::math::Quaterniond invOrient = ledPose.Rot().Inverse();
-        gz::math::Pose3d ledForward =
-            gz::math::Pose3d(0, 0, 1, 0, 0, 0).RotatePositionAboutOrigin(invOrient);
+        gz::math::Vector3d local_axis(
+            led_optics.axis_x, led_optics.axis_y, led_optics.axis_z);
+        if (!local_axis.IsFinite() || local_axis.Length() < 1.0e-9) {
+          local_axis = gz::math::Vector3d::UnitZ;
+        } else {
+          local_axis.Normalize();
+        }
+        // A link pose maps local vectors into world coordinates.  The legacy
+        // implementation used the inverse rotation, reversing the outward
+        // axes configured on the UAV body.
+        const gz::math::Vector3d led_forward =
+            ledPose.Rot().RotateVector(local_axis);
         gz::math::Vector3d toCam = camPose.Pos() - ledPose.Pos();
 
-        double distance = toCam.Length();
+        const double distance = toCam.Length();
         if (distance < 1e-6) {
           return false;
         }
-        double cosAngle = ledForward.Pos().Dot(toCam) / distance;
-        double intensity = std::round(this->led_gain * std::max(0.0, cosAngle) *
-            (coef[0] + (coef[1] / ((distance + coef[2]) * (distance + coef[2])))));
+        const double cos_angle = led_forward.Dot(toCam) / distance;
+        const double signal_adu = uvdar_gazebo_plugin::optics::integratedSignalAdu(
+            this->camera_response,
+            led_optics.power_w,
+            cos_angle,
+            led_optics.lambertian_order,
+            distance,
+            this->led_gain);
 
-        if (radius_out != nullptr) {
-          *radius_out = std::sqrt(std::max(0.0, intensity) / M_PI);
+        if (signal_adu_out != nullptr) {
+          *signal_adu_out = signal_adu;
         }
 
-        return intensity > min_intensity;
+        return signal_adu > 0.0;
       }
 
     public:
@@ -376,11 +403,31 @@ namespace uvdar_gazebo_plugin {
           }
         }
 
-        if (_sdf->HasElement("min_intensity")) {
-          auto elem = _sdf->FindElement("min_intensity");
-          if (elem) {
-            this->min_intensity = elem->Get<double>();
-          }
+        if (_sdf->HasElement("exposure_us")) {
+          this->camera_response.exposure_us = _sdf->Get<double>("exposure_us");
+        }
+        if (_sdf->HasElement("aperture_diameter")) {
+          this->camera_response.aperture_diameter_m =
+              _sdf->Get<double>("aperture_diameter");
+        }
+        if (_sdf->HasElement("optical_transmission")) {
+          this->camera_response.optical_transmission =
+              _sdf->Get<double>("optical_transmission");
+        }
+        if (_sdf->HasElement("quantum_efficiency")) {
+          this->camera_response.quantum_efficiency =
+              _sdf->Get<double>("quantum_efficiency");
+        }
+        if (_sdf->HasElement("wavelength_nm")) {
+          this->camera_response.wavelength_nm =
+              _sdf->Get<double>("wavelength_nm");
+        }
+        if (_sdf->HasElement("electrons_per_adu")) {
+          this->camera_response.electrons_per_adu =
+              _sdf->Get<double>("electrons_per_adu");
+        }
+        if (_sdf->HasElement("psf_sigma")) {
+          this->camera_response.psf_sigma_px = _sdf->Get<double>("psf_sigma");
         }
 
         if (_sdf->HasElement("points_rate")) {
@@ -454,6 +501,34 @@ namespace uvdar_gazebo_plugin {
                   << env << "'" << std::endl;
           }
         }
+        if (const char *env = std::getenv("UVDAR_SIM_EXPOSURE_US")) {
+          try {
+            const double exposure = std::stod(env);
+            if (std::isfinite(exposure) && exposure > 0.0) {
+              this->camera_response.exposure_us = exposure;
+            } else {
+              gzerr << "[OcclusionCheck] Ignoring non-positive UVDAR_SIM_EXPOSURE_US='"
+                    << env << "'" << std::endl;
+            }
+          } catch (const std::exception &) {
+            gzerr << "[OcclusionCheck] Ignoring malformed UVDAR_SIM_EXPOSURE_US='"
+                  << env << "'" << std::endl;
+          }
+        }
+        if (const char *env = std::getenv("UVDAR_SIM_PSF_SIGMA")) {
+          try {
+            const double sigma = std::stod(env);
+            if (std::isfinite(sigma) && sigma > 0.0) {
+              this->camera_response.psf_sigma_px = sigma;
+            } else {
+              gzerr << "[OcclusionCheck] Ignoring non-positive UVDAR_SIM_PSF_SIGMA='"
+                    << env << "'" << std::endl;
+            }
+          } catch (const std::exception &) {
+            gzerr << "[OcclusionCheck] Ignoring malformed UVDAR_SIM_PSF_SIGMA='"
+                  << env << "'" << std::endl;
+          }
+        }
         if (const char *env = std::getenv("UVDAR_SIM_PUBLISH_IMAGE")) {
           const std::string value(env);
           this->publish_image = (value == "1" || value == "true" || value == "True");
@@ -476,6 +551,54 @@ namespace uvdar_gazebo_plugin {
           }
         }
 
+        if (!std::isfinite(this->camera_response.exposure_us)
+            || this->camera_response.exposure_us <= 0.0) {
+          gzerr << "[OcclusionCheck] Invalid exposure_us; using 1000 us"
+                << std::endl;
+          this->camera_response.exposure_us = 1000.0;
+        }
+        if (!std::isfinite(this->camera_response.aperture_diameter_m)
+            || this->camera_response.aperture_diameter_m <= 0.0) {
+          gzerr << "[OcclusionCheck] Invalid aperture_diameter; using 0.001 m"
+                << std::endl;
+          this->camera_response.aperture_diameter_m = 0.001;
+        }
+        if (!std::isfinite(this->camera_response.optical_transmission)
+            || this->camera_response.optical_transmission <= 0.0
+            || this->camera_response.optical_transmission > 1.0) {
+          gzerr << "[OcclusionCheck] Invalid optical_transmission; using 0.2"
+                << std::endl;
+          this->camera_response.optical_transmission = 0.2;
+        }
+        if (!std::isfinite(this->camera_response.quantum_efficiency)
+            || this->camera_response.quantum_efficiency <= 0.0
+            || this->camera_response.quantum_efficiency > 1.0) {
+          gzerr << "[OcclusionCheck] Invalid quantum_efficiency; using 0.3"
+                << std::endl;
+          this->camera_response.quantum_efficiency = 0.3;
+        }
+        if (!std::isfinite(this->camera_response.wavelength_nm)
+            || this->camera_response.wavelength_nm <= 0.0) {
+          gzerr << "[OcclusionCheck] Invalid wavelength_nm; using 395 nm"
+                << std::endl;
+          this->camera_response.wavelength_nm = 395.0;
+        }
+        if (!std::isfinite(this->camera_response.electrons_per_adu)
+            || this->camera_response.electrons_per_adu <= 0.0) {
+          gzerr << "[OcclusionCheck] Invalid electrons_per_adu; using 80"
+                << std::endl;
+          this->camera_response.electrons_per_adu = 80.0;
+        }
+        if (!std::isfinite(this->camera_response.psf_sigma_px)
+            || this->camera_response.psf_sigma_px <= 0.0) {
+          gzerr << "[OcclusionCheck] Invalid psf_sigma; using 0.35 px"
+                << std::endl;
+          this->camera_response.psf_sigma_px = 0.35;
+        }
+        if (!std::isfinite(this->led_gain) || this->led_gain <= 0.0) {
+          gzerr << "[OcclusionCheck] Invalid led_gain; using 1.0" << std::endl;
+          this->led_gain = 1.0;
+        }
         auto nameComp = _ecm.Component<gz::sim::components::Name>(_entity);
         if (nameComp) {
           this->entity_name = nameComp->Data();
@@ -526,18 +649,26 @@ namespace uvdar_gazebo_plugin {
             image_topic = elem->Get<std::string>();
           }
         }
+        const int level = (this->background_setting < 0)
+            ? (std::rand() % 100)
+            : this->background_setting;
+        this->background_level = static_cast<uint8_t>(std::clamp(level, 0, 100));
         if (this->publish_image) {
-          this->pub_image = this->nh->create_publisher<sensor_msgs::msg::Image>(image_topic, 10);
-          const int level = (this->background_setting < 0)
-              ? (std::rand() % 100)
-              : this->background_setting;
-          this->background_level = static_cast<uint8_t>(std::clamp(level, 0, 100));
+          this->pub_image = this->nh->create_publisher<sensor_msgs::msg::Image>(
+              image_topic, 10);
         }
 
         gzmsg << "[OcclusionCheck] Plugin started! model=" << this->entity_name
           << " device_id=" << this->device_id
           << " occlusions=" << (this->use_occlusions ? "on" : "off")
           << " covariance=" << this->covariance_model
+          << " exposure=" << this->camera_response.exposure_us << "us"
+          << " aperture=" << this->camera_response.aperture_diameter_m << "m"
+          << " transmission=" << this->camera_response.optical_transmission
+          << " QE=" << this->camera_response.quantum_efficiency
+          << " wavelength=" << this->camera_response.wavelength_nm << "nm"
+          << " conversion=" << this->camera_response.electrons_per_adu << "e-/ADU"
+          << " psf_sigma=" << this->camera_response.psf_sigma_px << "px"
           << " points_topic=" << points_topic;
         if (this->publish_image) {
           gzmsg << " image_topic=" << image_topic
@@ -673,12 +804,12 @@ namespace uvdar_gazebo_plugin {
         msg.image_height = static_cast<uint32_t>(this->oc_model.height);
         msg.image_width = static_cast<uint32_t>(this->oc_model.width);
 
-        // Emulated camera frame, drawn from the same projections as the points
-        // below so the two topics are guaranteed consistent for a given stamp.
-        cv::Mat frame;
+        // Accumulate each emitter in a floating-point irradiance plane before
+        // sensor clipping.  This preserves additive light when PSFs overlap.
+        cv::Mat signal_frame;
         if (this->publish_image && this->pub_image) {
-          frame = cv::Mat(this->oc_model.height, this->oc_model.width, CV_8UC1,
-              cv::Scalar(this->background_level));
+          signal_frame = cv::Mat::zeros(
+              this->oc_model.height, this->oc_model.width, CV_64FC1);
         }
 
         size_t i = 0;
@@ -695,9 +826,15 @@ namespace uvdar_gazebo_plugin {
           }
 
           gz::math::Pose3d ledPose = gz::sim::worldPose(ledEntity, _ecm);
+          uvdar_gazebo_plugin::components::LedOpticsData led_optics;
+          auto *optics_component =
+              _ecm.Component<uvdar_gazebo_plugin::components::LedOptics>(ledEntity);
+          if (optics_component) {
+            led_optics = optics_component->Data();
+          }
           double point2D[2];
-          double radius = 0.0;
-          if (!projectLed(ledPose, point2D, &radius)) {
+          double signal_adu = 0.0;
+          if (!projectLed(ledPose, led_optics, point2D, &signal_adu)) {
             continue;
           }
 
@@ -711,7 +848,7 @@ namespace uvdar_gazebo_plugin {
             p.covariance_11 = this->pixel_covariance;
           } else {
             double c00 = 0.0, c01 = 0.0, c11 = 0.0;
-            blobCovariance(p.x, p.y, radius, c00, c01, c11);
+            blobCovariance(p.x, p.y, signal_adu, c00, c01, c11);
             p.covariance_00 = c00;
             p.covariance_01 = c01;
             p.covariance_10 = c01;   // symmetric
@@ -719,13 +856,17 @@ namespace uvdar_gazebo_plugin {
           }
           msg.points.push_back(p);
 
-          if (!frame.empty()) {
-            cv::circle(frame,
-                cv::Point2i(static_cast<int>(std::lround(p.x)),
-                            static_cast<int>(std::lround(p.y))),
-                static_cast<int>(std::lround(radius)),
-                cv::Scalar(255), -1);
+          if (!signal_frame.empty()) {
+            addPsf(signal_frame, p.x, p.y, signal_adu);
           }
+        }
+
+        cv::Mat frame;
+        if (!signal_frame.empty()) {
+          // convertTo performs the mono8 sensor saturation after adding the
+          // low, scene-free background requested for the emulator.
+          signal_frame.convertTo(
+              frame, CV_8UC1, 1.0, static_cast<double>(this->background_level));
         }
 
         std::lock_guard<std::mutex> lock(pubMutex);

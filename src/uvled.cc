@@ -20,6 +20,7 @@
 #include <uvdar_gazebo_plugin/msg/led_message.hpp>
 #include <uvdar_gazebo_plugin/srv/set_led_message.hpp>
 #include <uvdar_gazebo_plugin/components/led_blink.hpp>
+#include <uvdar_gazebo_plugin/components/led_optics.hpp>
 #include <mrs_msgs/srv/set_int.hpp>
 #include <mrs_msgs/srv/float64_srv.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -84,6 +85,9 @@ private:
   int id = -1;
   bool active = true;
   std::string unique_ID;
+  double optical_power_w = 1.0;
+  double lambertian_order = 1.0;
+  gz::math::Vector3d emission_axis{0.0, 0.0, 1.0};
 
   // Publishers
   rclcpp::Publisher<uvdar_gazebo_plugin::msg::LedInfo>::SharedPtr led_info_pub;
@@ -159,6 +163,35 @@ void Configure(const gz::sim::Entity &_entity,
     this->fm = 60.0;
   }
 
+  if (_sdf->HasElement("power_w")) {
+    const double value = _sdf->Get<double>("power_w");
+    if (std::isfinite(value) && value > 0.0) {
+      this->optical_power_w = value;
+    } else {
+      gzerr << "[UvLed] Invalid power_w=" << value << ", using 1 W" << std::endl;
+    }
+  }
+
+  if (_sdf->HasElement("lambertian_order")) {
+    const double value = _sdf->Get<double>("lambertian_order");
+    if (std::isfinite(value) && value >= 0.0) {
+      this->lambertian_order = value;
+    } else {
+      gzerr << "[UvLed] Invalid lambertian_order=" << value
+            << ", using first-order Lambertian emission" << std::endl;
+    }
+  }
+
+  if (_sdf->HasElement("emission_axis")) {
+    const gz::math::Vector3d value = _sdf->Get<gz::math::Vector3d>("emission_axis");
+    if (value.IsFinite() && value.Length() > 1.0e-9) {
+      this->emission_axis = value.Normalized();
+    } else {
+      gzerr << "[UvLed] Invalid emission_axis=" << value
+            << ", using local +Z" << std::endl;
+    }
+  }
+
   if (const char *env = std::getenv("UVDAR_SIM_BITRATE")) {
     try {
       const double rate = std::stod(env);
@@ -197,6 +230,15 @@ void Configure(const gz::sim::Entity &_entity,
     return;
   }
 
+  uvdar_gazebo_plugin::components::LedOpticsData optics;
+  optics.power_w = this->optical_power_w;
+  optics.lambertian_order = this->lambertian_order;
+  optics.axis_x = this->emission_axis.X();
+  optics.axis_y = this->emission_axis.Y();
+  optics.axis_z = this->emission_axis.Z();
+  _ecm.CreateComponent(this->link_entity,
+      uvdar_gazebo_plugin::components::LedOptics(optics));
+
   // --- 2b. Load the table of blinking sequences (indexed by signal_id) ---
   std::string sequence_file = "default.txt";
   if (_sdf->HasElement("sequence_file")) {
@@ -224,7 +266,10 @@ void Configure(const gz::sim::Entity &_entity,
 
   gzmsg << "[UvLed] Plugin started! model=" << entity_name
         << " device_id=" << this->device_id
-        << " link_name=" << this->link_name << std::endl;
+        << " link_name=" << this->link_name
+        << " power=" << this->optical_power_w << " W"
+        << " lambertian_order=" << this->lambertian_order
+        << " emission_axis=" << this->emission_axis << std::endl;
 
   // --- 4. Publishers (same as before) ---
   this->led_info_pub = this->nh->create_publisher<uvdar_gazebo_plugin::msg::LedInfo>(

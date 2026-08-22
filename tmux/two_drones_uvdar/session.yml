@@ -23,21 +23,18 @@ pre_window:
   # is nobody's input, it is the ground-truth reference to diff the detector's
   # output against.
   - export UVDAR_SIM_PUBLISH_IMAGE=1
+  # MT9V034 exposure used by the physical camera-response model.
+  - export UVDAR_SIM_EXPOSURE_US=1000
   # Emulated-image appearance. Only used when UVDAR_SIM_PUBLISH_IMAGE=1;
   # both are also settable per-camera as SDF elements (<led_gain>,
   # <background_level>) and are logged by OcclusionCheck at startup.
   #
-  # LED_GAIN multiplies the modelled LED intensity, which is blob AREA, so the
-  # drawn radius scales as sqrt(gain). 1.0 reproduces ROS1's model exactly
-  # (coefficients from uvcam.cc:102), which treats the LED as an ideal point
-  # source with 1/d^2 falloff -- only ~1 px radius at 5 m. A real saturated UV
-  # LED blooms wider than that, hence the knob. Radius at 5 m:
-  #   gain 1 -> 1 px    gain 4 -> 2 px    gain 9 -> 3 px    gain 16 -> 4 px
-  - export UVDAR_SIM_LED_GAIN=9
-  # Grey level the frame is filled with before LEDs (drawn at 255) are added,
-  # giving the detector a noise floor to reject. Clamped to [0,100], safely
-  # under the detector's threshold of 120. Negative = ROS1's per-camera
-  # std::rand()%100, which is why the two cameras used to differ 
+  # LED_GAIN is an optional multiplier after the physical optical chain.
+  # Distance and angle follow inverse-square and Lambertian attenuation.
+  - export UVDAR_SIM_LED_GAIN=1
+  # Grey level the frame is filled with before the additive LED PSFs. Clamped
+  # to [0,100], safely under the detector's threshold of 120. Negative selects
+  # one random per-camera level in [0,100).
   - export UVDAR_SIM_BACKGROUND=30
   # Must match the flag above: uvdar.yaml (emulator off) or
   # uvdar_detector.yaml (emulator on).
@@ -109,7 +106,7 @@ windows:
       panes:
         - |
           # detector_node only runs in emulator mode (UVDAR_SIM_PUBLISH_IMAGE=1),
-          # where the plugin renders a real camera image for it to process.
+          # where the plugin renders a synthetic mono8 LED image for it.
           # With the flag off the plugin publishes detector-format points
           # directly and this stage is skipped entirely, as before.
           if [ "$UVDAR_SIM_PUBLISH_IMAGE" = "1" ]; then

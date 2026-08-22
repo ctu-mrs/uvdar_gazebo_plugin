@@ -103,6 +103,12 @@ target_link_libraries(uvdar_occl_check
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
+
+  add_executable(led_optics_model_test
+    test/led_optics_model_test.cpp
+  )
+  target_include_directories(led_optics_model_test PRIVATE include)
+  add_test(NAME led_optics_model_test COMMAND led_optics_model_test)
 endif()
 
 # --------------------------------------------------------------
