@@ -124,4 +124,4 @@ windows:
   - rviz:
       layout: tiled
       panes:
-        - export UAV_NAME=uav1; waitForCore; ros2 run rviz2 rviz2 --ros-args -p use_sim_time:=true
+        - export UAV_NAME=uav1; waitForCore; ros2 run rviz2 rviz2 -d ./config/uvdar.rviz --ros-args -p use_sim_time:=true
