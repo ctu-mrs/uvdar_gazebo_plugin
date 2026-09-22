@@ -180,6 +180,7 @@ pose_estimation:
       calib_file: camera/ocam.yaml
 
 filtering:
+  enabled: true
   implementation: kf_pose
   debug: false
   # uav1's world-fixed frame (ROS2 MRS's per-robot equivalent of ROS1's
@@ -188,6 +189,9 @@ filtering:
   measured_poses_topics: [/pose_estimator/measured_poses]
   output_topic: /filter/filtered_poses
   tentative_output_topic: /filter/filtered_poses/tentative
+  publish_visualization: true
+  visualization_topic: /filter/visualization
+  visualization_fps: 5.0
   output_framerate: 20.0
   anonymous_measurements: false
   indoor: false

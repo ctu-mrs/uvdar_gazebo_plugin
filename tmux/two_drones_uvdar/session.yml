@@ -121,6 +121,8 @@ windows:
           waitForGazebo; sleep 20; ros2 launch uvdar_core tracker.launch.py config_file:=$UVDAR_CONFIG
         - |
           waitForGazebo; sleep 22; ros2 launch uvdar_core pose_estimator.launch.py config_file:=$UVDAR_CONFIG
+        - |
+          waitForGazebo; sleep 24; ros2 launch uvdar_core filter.launch.py config_file:=$UVDAR_CONFIG
   - rviz:
       layout: tiled
       panes:
