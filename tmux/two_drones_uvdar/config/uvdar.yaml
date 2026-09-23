@@ -133,7 +133,6 @@ pose_estimation:
     max_init_iterations: 10000
     max_mutation_refine_iterations: 1000
   geometric_solver:
-    visibility_half_angle_rad: 1.5707963267948966
     uncertainty_solver: jacobian_propagation # Options: jacobian_propagation, monte_carlo, ellipse_transform
     uncertainty_samples: 5000 # for monte-carlo only
     # Match the simulator's first-order Lambertian emitter: projectLed() emits
