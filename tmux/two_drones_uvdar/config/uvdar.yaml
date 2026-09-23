@@ -114,8 +114,9 @@ pose_estimation:
   publish_constituents: false
   # x500 LED geometry for signal_id:=[0,1,2,3]: 4 arms, 2 LEDs each at 90 deg;
   # see the comment at the top of that file. Not yet empirically verified.
-  model_file: models/x500_foursided_px4_motor_aligned.txt
-  signal_ids: [0, 1, 2, 3]
+  # $UVDAR_LED_MODEL is set in session.yml from UVDAR_BEACON.
+  model_file: models/${UVDAR_LED_MODEL}
+  signal_ids: [0, 1, 2, 3, 4]
   publish_period_sec: 0.1
   particle_filter:
     separate_by_distance: true
@@ -132,6 +133,7 @@ pose_estimation:
     max_init_iterations: 10000
     max_mutation_refine_iterations: 1000
   geometric_solver:
+    visibility_half_angle_rad: 1.5707963267948966
     uncertainty_solver: jacobian_propagation # Options: jacobian_propagation, monte_carlo, ellipse_transform
     uncertainty_samples: 5000 # for monte-carlo only
     # Match the simulator's first-order Lambertian emitter: projectLed() emits

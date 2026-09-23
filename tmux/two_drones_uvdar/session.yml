@@ -35,11 +35,24 @@ pre_window:
   # Grey level the frame is filled with before the additive LED PSFs. Clamped
   # to [0,100], safely under the detector's threshold of 120. Negative selects
   # one random per-camera level in [0,100).
+  # LED_GAIN multiplies the modelled LED intensity, which is blob AREA, so the
+  # drawn radius scales as sqrt(gain). 1.0 reproduces ROS1's model exactly
+  # (coefficients from uvcam.cc:102), which treats the LED as an ideal point
+  # source with 1/d^2 falloff -- only ~1 px radius at 5 m. A real saturated UV
+  # LED blooms wider than that, hence the knob. Radius at 5 m:
+  #   gain 1 -> 1 px    gain 4 -> 2 px    gain 9 -> 3 px    gain 16 -> 4 px
+  - export UVDAR_SIM_LED_GAIN=9
+  # Grey level the frame is filled with before LEDs (drawn at 255) are added,
+  # giving the detector a noise floor to reject. Clamped to [0,100], safely
+  # under the detector's threshold of 120. Negative = ROS1's per-camera
+  # std::rand()%100, which is why the two cameras used to differ 
   - export UVDAR_SIM_BACKGROUND=30
   # Must match the flag above: uvdar.yaml (emulator off) or
   # uvdar_detector.yaml (emulator on).
   - export UVDAR_CONFIG=./config/uvdar_detector.yaml
-#  - export UVDAR_CONFIG=./config/uvdar.yaml
+  #  - export UVDAR_CONFIG=./config/uvdar.yaml
+  - export UVDAR_BEACON=1
+  - if [ "$UVDAR_BEACON" = "1" ]; then export UVDAR_BEACON_ARGS="--enable-uv-leds-beacon signal_id:=4" UVDAR_LED_MODEL=x500_foursided_beacon_px4_motor_aligned.txt; else export UVDAR_BEACON_ARGS="" UVDAR_LED_MODEL=x500_foursided_px4_motor_aligned.txt; fi
 startup_window: status
 windows:
   - zenoh_router:
@@ -60,9 +73,10 @@ windows:
           #waitForGazebo; sleep 5; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '1 --$UAV_TYPE --pos 0.0 0.0 0.3 0.0 --enable-rangefinder'}"
         - |
           # uav2 = transmitter: 8 UV LEDs cycling through signal_id 0-3
-          # (2 LEDs per signal, see config/models/x500_foursided_px4_motor_aligned.txt).
+          # (2 LEDs per signal, see config/models/x500_foursided_px4_motor_aligned.txt),
+          # plus the beacon when UVDAR_BEACON=1 ($UVDAR_BEACON_ARGS).
           # Must match tracking.sequences in config/uvdar.yaml.
-          waitForGazebo; sleep 8; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '2 --$UAV_TYPE --pos 5.0 0.0 0.3 0.7 --enable-rangefinder --enable-uv-leds signal_id:=[0,1,2,3]'}"
+          waitForGazebo; sleep 8; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '2 --$UAV_TYPE --pos 5.0 0.0 0.3 0.7 --enable-rangefinder --enable-uv-leds signal_id:=[0,1,2,3] $UVDAR_BEACON_ARGS'}"
           #waitForGazebo; sleep 8; ros2 service call /mrs_drone_spawner/spawn mrs_msgs/srv/String "{value: '2 --$UAV_TYPE --pos 5.0 0.0 0.3 0.7 --enable-rangefinder'}"
   - px4_api:
       layout: tiled

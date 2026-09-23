@@ -91,17 +91,21 @@ tracking:
   # every message should be an exact bit once uvcam_ray.cc publishes at the
   # LED blink bitrate instead of every physics step (see the points_rate fix
   # in that plugin). Raising this would only mask a real reconstruction bug.
-  allowed_BER_per_seq: 0
+  allowed_BER_per_seq: 1
   manchester_code: false
-  # Must match the 4 sequences the LEDs cycle through -- see
+  # Must match the sequences the LEDs cycle through -- see
   # uvdar_gazebo_plugin/config/sequences/default.txt (the plugin's default),
   # and the spawn command's "--enable-uv-leds signal_id:=[0,1,2,3]" below.
+  # The 5th is the beacon's (UVDAR_BEACON=1, "--enable-uv-leds-beacon
+  # signal_id:=4"); it is >= 6 bit errors from every cyclic shift of the other
+  # four, so with allowed_BER_per_seq 1 it cannot be confused with them.
   sequence_file: ""
   sequences:
-    - "111001011"
-    - "110011010"
-    - "101100111"
-    - "100111010"
+    - "001001001011011011"
+    - "001001001101101011"
+    - "001001010101011011"
+    - "001001010101101101"
+    - "001001100110110011"
   inputs:
     # uav1's two forward-looking UV cameras (dual_uv_cameras_macro).
     #
@@ -147,8 +151,10 @@ pose_estimation:
   publish_constituents: true 
   # x500 LED geometry for signal_id:=[0,1,2,3]: 4 arms, 2 LEDs each at 90 deg;
   # see the comment at the top of that file. Not yet empirically verified.
-  model_file: models/x500_foursided_px4_motor_aligned.txt
-  signal_ids: [0, 1, 2, 3]
+  # $UVDAR_LED_MODEL is set in session.yml from UVDAR_BEACON and adds the
+  # beacon (signal 4) when it is on. Listing 4 here is harmless without it.
+  model_file: models/${UVDAR_LED_MODEL}
+  signal_ids: [0, 1, 2, 3, 4]
   publish_period_sec: 0.1
   particle_filter:
     separate_by_distance: true

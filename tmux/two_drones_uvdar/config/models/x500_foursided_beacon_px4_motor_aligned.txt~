@@ -1,0 +1,35 @@
+# UVDAR LED model for the MRS x500, four-sided, PX4 motor aligned, WITH beacon.
+# x500 counterpart of uvdar_core's config/models/quadrotor_beacon.txt.
+#
+# The first eight rows are identical to x500_foursided_px4_motor_aligned.txt --
+# see that file for the arm layout and the per-arm signal mapping.
+#
+# BEACON: four LEDs on top of the vehicle, 0.125 m above the arm plane, 10 mm
+# from the centre and aimed +X, +Y, -X, -Y, all carrying signal_id 4. They sit
+# well within uvdar_core's 3 cm LED grouping distance, so BodyModel merges them
+# into one marker at (0, 0, 0.125) that is visible from any azimuth.
+#
+# Derived from `--enable-uv-leds-beacon signal_id:=4` in mrs_uav_gazebo_simulator's
+# x500.sdf.jinja / uv_devices.sdf.jinja (same geometry as ROS1's x500 beacon).
+# The beacon's signal_id must stay distinct from the four arm IDs: BodyModel
+# refuses a signal that appears on more than one LED group. It needs a 5th
+# line in uvdar_gazebo_plugin/config/sequences/default.txt and a 5th entry in
+# tracking.sequences.
+#
+# Type is 1 for the beacon rows to follow ROS1's quadrotor_beacon.txt; the ROS2
+# BodyModel stores the column but does not use it. Pitch is 0.0 for the same
+# reason given in x500_foursided_px4_motor_aligned.txt.
+#
+# X Y Z Type Pitch Yaw signal_id
+0.2017755  0.1947045  0     0 0.0 0             2
+0.1947045  0.2017755  0     0 0.0 1.57079632679 2
+0.1947045  -0.2017755 0     0 0.0 -1.57079632679 0
+0.2017755  -0.1947045 0     0 0.0 0             0
+-0.1947045 0.2017755  0     0 0.0 1.57079632679 1
+-0.2017755 0.1947045  0     0 0.0 3.14159265359 1
+-0.2017755 -0.1947045 0     0 0.0 -3.14159265359 3
+-0.1947045 -0.2017755 0     0 0.0 -1.57079632679 3
+0.01       0          0.125 1 0.0 0             4
+0          0.01       0.125 1 0.0 1.57079632679 4
+-0.01      0          0.125 1 0.0 3.14159265359 4
+0          -0.01      0.125 1 0.0 -1.57079632679 4
