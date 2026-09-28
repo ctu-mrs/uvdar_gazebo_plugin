@@ -99,6 +99,24 @@ tracking:
       publish_visualization: true
       visualization_topic: /tracker/uav1_2/visualization
 
+bearing:
+  queue_depth: 10
+  output_frame: uav1/fcu
+  output_topic: /uav1/uvdar/bearing/observations
+  publish_predictions: true
+  publish_unidentified: true
+  covariance_floor_px2: 1.0e-6
+  fallback_pixel_variance_px2: 1.0
+  inputs:
+    - name: uav1_1
+      input_topic: /tracker/uav1_1/blinkers
+      camera_frame: uav1/uvcam_uav1_1_optical
+      calib_file: camera/ocam.yaml
+    - name: uav1_2
+      input_topic: /tracker/uav1_2/blinkers
+      camera_frame: uav1/uvcam_uav1_2_optical
+      calib_file: camera/ocam.yaml
+
 pose_estimation:
   implementation: geometric_solver
   debug: false
